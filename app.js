@@ -28,7 +28,8 @@ function cancelMovement(i){
  let ef=m.effect||{};
  if(ef.kind==="receiptBar"){if(p.qty<m.qty)return alert("Pohyb nemožno zrušiť: prijaté tyče už boli spotrebované.");p.qty-=m.qty}
  else if(ef.kind==="receiptCut"){let x=C.find(x=>x.id===ef.cutId);if(!x||x.status!=="DOSTUPNÝ"||x.qty<m.qty)return alert("Pohyb nemožno zrušiť: prijatý kus už bol spotrebovaný.");x.qty-=m.qty;if(!x.qty)C.splice(C.indexOf(x),1)}
- else if(ef.kind==="issueBar"){if(!removeCreatedCut(ef.newCutId))return alert("Pohyb nemožno zrušiť: nový odrezok už bol ďalej použitý.");p.qty+=1}\n else if(ef.kind==="issueBars"){p.qty+=ef.qty}
+ else if(ef.kind==="issueBar"){if(!removeCreatedCut(ef.newCutId))return alert("Pohyb nemožno zrušiť: nový odrezok už bol ďalej použitý.");p.qty+=1}
+ else if(ef.kind==="issueBars"){p.qty+=ef.qty}
  else if(ef.kind==="issueCut"){if(!removeCreatedCut(ef.newCutId))return alert("Pohyb nemožno zrušiť: nový odrezok už bol ďalej použitý.");let x=C.find(x=>x.id===ef.cutId);if(!x)return alert("Pôvodný odrezok sa nenašiel.");x.qty+=1;x.status="DOSTUPNÝ"}
  else return alert("Tento starší pohyb nemá údaje potrebné na bezpečné zrušenie.");
  m.cancelled=true;m.cancelledAt=new Date().toLocaleString("sk-SK");render();
