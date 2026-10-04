@@ -83,6 +83,25 @@ document.querySelectorAll('input[name="gut"]').forEach(r=>r.onchange=()=>{$("#cu
 function evalJob(){return D.famus.map(x=>{let p=findP(x.code),n=x.length*x.qty,a=(p?p.length*p.qty:0)+C.filter(c=>c.code===x.code&&c.status==="DOSTUPNÝ").reduce((s,c)=>s+c.length*c.qty,0);return[x.code,x.name,(n/1000).toFixed(2),(a/1000).toFixed(2),a>=n?"OK":"NEDOSTATOK"]})}
 $("#evaluate").onclick=()=>{if(document.querySelector('input[name="gut"]:checked').value==="custom"&&[...document.querySelectorAll(".glen")].reduce((a,x)=>a+(+x.value||0),0)!==11992)return alert("Vlastné dĺžky žľabu nemajú správny súčet.");let r=evalJob();$("#evaluation").innerHTML='<h3>Kontrola dostupnosti</h3><div class="scroll"><table><tr><th>Profil</th><th>Názov</th><th>Potrebné bm</th><th>Dostupné bm</th><th>Stav</th></tr>'+r.map(x=>`<tr><td>${x[0]}</td><td>${x[1]}</td><td>${x[2]}</td><td>${x[3]}</td><td class="${x[4]==="OK"?"ok":"bad"}">${x[4]}</td></tr>`).join('')+'</table></div><div class="actions"><button id="genPrint">Vytvoriť výrobný list</button></div>';$("#genPrint").onclick=makePrint};
 
+
+let famusReserved=false;
+function famusAudit(){
+ return D.famus.map(x=>{
+  let p=findP(x.code);
+  let whole=p?(p.length*p.qty):0;
+  let cuts=C.filter(z=>z.code===x.code&&z.status==="DOSTUPNÝ").reduce((s,z)=>s+z.length*z.qty,0);
+  let need=x.length*x.qty, available=whole+cuts;
+  return {code:x.code,name:x.name,length:x.length,qty:x.qty,need,available,ok:available>=need};
+ });
+}
+function renderFamusAudit(){
+ let r=famusAudit(), missing=r.filter(x=>!x.ok);
+ $("#evaluation").innerHTML='<h3>Kontrola skladu – FAMUS pergola</h3><div class="'+(missing.length?"warn":"note")+'"><b>'+(missing.length?"Materiál nie je kompletný.":"Materiál podľa základnej kontroly postačuje.")+'</b></div><div class="scroll"><table><tr><th>Profil</th><th>Názov</th><th>Požadované</th><th>Potrebné bm</th><th>Dostupné bm</th><th>Stav</th></tr>'+r.map(x=>'<tr><td>'+x.code+'</td><td>'+x.name+'</td><td>'+x.qty+' × '+x.length+' mm</td><td>'+(x.need/1000).toFixed(2)+'</td><td>'+(x.available/1000).toFixed(2)+'</td><td class="'+(x.ok?'ok':'bad')+'">'+(x.ok?'OK':'CHÝBA')+'</td></tr>').join('')+'</table></div><div class="actions"><button id="genPrint">Vytvoriť výrobný list</button></div>';
+ if($("#genPrint"))$("#genPrint").onclick=makePrint;
+ return r;
+}
+
+
 const DUBNICA_REQ=[
  {code:"W.6216",label:"Bočný profil",need:70,unit:"ks",length:1429},
  {code:"W.6218",label:"Koľajnica",need:70,unit:"dielov",length:3330,note:"35 horných vcelku + 35 spodných max. 2 diely"},
