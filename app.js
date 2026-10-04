@@ -82,4 +82,58 @@ $("#camera").onclick=async()=>{try{stopScanner();if(!window.jsQR)throw Error("QR
 document.querySelectorAll('input[name="gut"]').forEach(r=>r.onchange=()=>{$("#customGut").classList.toggle("hidden",document.querySelector('input[name="gut"]:checked').value!=="custom");checkGut()});document.querySelectorAll(".glen").forEach(x=>x.oninput=checkGut);function checkGut(){let s=[...document.querySelectorAll(".glen")].reduce((a,x)=>a+(+x.value||0),0),n=11992;$("#gcheck").innerHTML=s===n?'<span class="ok">Súčet sedí.</span>':`<span class="bad">Súčet ${s}; požadované ${n}; rozdiel ${n-s}.</span>`}
 function evalJob(){return D.famus.map(x=>{let p=findP(x.code),n=x.length*x.qty,a=(p?p.length*p.qty:0)+C.filter(c=>c.code===x.code&&c.status==="DOSTUPNÝ").reduce((s,c)=>s+c.length*c.qty,0);return[x.code,x.name,(n/1000).toFixed(2),(a/1000).toFixed(2),a>=n?"OK":"NEDOSTATOK"]})}
 $("#evaluate").onclick=()=>{if(document.querySelector('input[name="gut"]:checked').value==="custom"&&[...document.querySelectorAll(".glen")].reduce((a,x)=>a+(+x.value||0),0)!==11992)return alert("Vlastné dĺžky žľabu nemajú správny súčet.");let r=evalJob();$("#evaluation").innerHTML='<h3>Kontrola dostupnosti</h3><div class="scroll"><table><tr><th>Profil</th><th>Názov</th><th>Potrebné bm</th><th>Dostupné bm</th><th>Stav</th></tr>'+r.map(x=>`<tr><td>${x[0]}</td><td>${x[1]}</td><td>${x[2]}</td><td>${x[3]}</td><td class="${x[4]==="OK"?"ok":"bad"}">${x[4]}</td></tr>`).join('')+'</table></div><div class="actions"><button id="genPrint">Vytvoriť výrobný list</button></div>';$("#genPrint").onclick=makePrint};
+
+const DUBNICA_REQ=[
+ {code:"W.6216",label:"Bočný profil",need:70,unit:"ks",length:1429},
+ {code:"W.6218",label:"Koľajnica",need:70,unit:"dielov",length:3330,note:"35 horných vcelku + 35 spodných max. 2 diely"},
+ {code:"W.6518",label:"Kompenzačný profil",need:35,unit:"ks",length:3330},
+ {code:"W.4919",label:"Zasklievací profil 6 mm",need:350,unit:"rezov",length:635,approx:true},
+ {code:"W.6244.00.00.05.000.12",label:"Side column equipment",need:140,unit:"ks"},
+ {code:"W.6226.03.SO.05.000.01",label:"Krytka ľavá krajná",need:70,unit:"ks"},
+ {code:"W.6226.04.SA.05.000.01",label:"Krytka pravá krajná",need:70,unit:"ks"},
+ {code:"W.6227.05.SO.05.000.01",label:"Krytka ľavá",need:280,unit:"ks"},
+ {code:"W.6227.06.SA.05.000.01",label:"Krytka pravá",need:280,unit:"ks"},
+ {code:"W.6224.00.AL.05.000.01",label:"Vjazd spodný",need:35,unit:"ks"},
+ {code:"W.6294.01.00.00.000.12",label:"Kolieska",need:350,unit:"ks"},
+ {code:"W.6293.01.00.00.000.12",label:"Kolieska s límcom",need:280,unit:"ks"},
+ {code:"W.6222.00.00.02.000.12",label:"Parkovisko",need:35,unit:"ks"},
+ {code:"W.6248.03.00.05.000.12",label:"W.6248 set",need:35,unit:"ks"},
+ {code:"W.6265.45.01.05.000.01",label:"Hrebeň / stopper",need:35,unit:"ks"},
+ {code:"W.6247.00.00.02.000.12",label:"Kľučka",need:35,unit:"ks"},
+ {code:"W.6401.06.00.SF.300.04",label:"Glass Seal 6 mm",need:140,unit:"ks"}
+];
+let dubnicaReserved=false;
+function stockMatch(code){return P.filter(x=>x.code===code)}
+function dubnicaAudit(){
+ return DUBNICA_REQ.map(r=>{
+  const rows=stockMatch(r.code), p=rows[0], qty=rows.reduce((s,x)=>s+(x.qty||0),0);
+  let available=qty, ok=false, display=qty;
+  if(r.length&&p&&p.length&&["W.6216","W.6518"].includes(r.code)){
+    available=Math.floor((qty*p.length)/(r.length+5));display=available;ok=available>=r.need;
+  }else if(r.code==="W.6218"){
+    const bars=qty, cut1930=C.filter(x=>x.code==="W.6218"&&x.status==="DOSTUPNÝ").reduce((s,x)=>s+x.qty,0);
+    display=bars+" tyčí + "+cut1930+" odrezkov";ok=bars>=35;
+  }else if(r.code==="W.4919"&&p){
+    available=Math.floor((qty*p.length)/(r.length+5));display=available+" rezov orientačne";ok=available>=r.need;
+  }else ok=available>=r.need;
+  return {...r,available,display,ok};
+ })
+}
+function renderDubnica(){
+ const a=dubnicaAudit(), missing=a.filter(x=>!x.ok);
+ $("#dubnicaResult").innerHTML='<div class="'+(missing.length?"warn":"note")+'"><b>'+(missing.length?"Materiál nie je kompletný.":"Materiál podľa kontroly postačuje.")+'</b></div><div class="scroll"><table><tr><th>Kód</th><th>Položka</th><th>Potrebujeme</th><th>Dostupné</th><th>Stav</th></tr>'+a.map(x=>'<tr><td>'+x.code+'</td><td>'+x.label+(x.note?'<br><span class="muted">'+x.note+'</span>':'')+'</td><td>'+x.need+' '+x.unit+'</td><td>'+x.display+'</td><td class="'+(x.ok?'ok':'bad')+'">'+(x.ok?'OK':'CHÝBA')+'</td></tr>').join('')+'</table></div>';
+ return a;
+}
+$("#checkDubnica").onclick=renderDubnica;
+$("#reserveDubnica").onclick=()=>{
+ if(dubnicaReserved)return alert("Teraska Dubnica je už rezervovaná.");
+ const a=renderDubnica(), missing=a.filter(x=>!x.ok);
+ if(missing.length&&!confirm("Niektoré položky chýbajú. Rezervovať dostupný materiál aj napriek tomu?"))return;
+ dubnicaReserved=true;
+ H.unshift({id:Date.now()+"-RES",time:new Date().toLocaleString("sk-SK"),type:"REZERVÁCIA PRE VÝROBU",code:"TERASKA-DUBNICA",color:"—",qty:35,length:"—",job:"Teraska Dubnica",cancelled:false,effect:{kind:"reservation"}});
+ $("#reserveDubnica").textContent="Rezervované ✓";$("#reserveDubnica").disabled=true;
+ $("#dubnicaResult").insertAdjacentHTML("afterbegin",'<div class="note"><b>Rezervácia vytvorená.</b> Materiál je označený pre zákazku Teraska Dubnica. V prototype zatiaľ nemení fyzický stav skladu.</div>');
+ render();
+};
+
 function makePrint(){let g=document.querySelector('input[name="gut"]:checked').value==="custom"?[...document.querySelectorAll(".glen")].map(x=>+x.value):[4000,4000,3992];$("#printBody").innerHTML=D.famus.map(x=>`<h3>${x.code} – ${x.name}</h3><p>${x.qty} × ${x.length} mm</p>`).join('')+`<h3>W.2309 – delenie žľabu</h3><p>${g.join(" + ")} mm</p>`;show("print")}bindFilters();render();checkGut();syncLengthMode();
