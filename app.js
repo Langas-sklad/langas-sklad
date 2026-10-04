@@ -105,26 +105,48 @@ function renderFamusAudit(){
 
 
 
+function famusPieces(){
+ const out=[];
+ for(const x of D.famus){
+   if(x.length<=7500){for(let i=0;i<x.qty;i++)out.push({code:x.code,length:x.length})}
+   else if(x.code==="W.2309"){for(let i=0;i<x.qty;i++)[4000,4000,3992].forEach(v=>out.push({code:x.code,length:v}))}
+   else if(x.code==="W.2306"){for(let i=0;i<x.qty;i++)[5996,5996].forEach(v=>out.push({code:x.code,length:v}))}
+   else if(x.code==="W.2307"){for(let i=0;i<x.qty;i++)[5996,5996].forEach(v=>out.push({code:x.code,length:v}))}
+ }
+ return out;
+}
+function planFamusReservation(){
+ const plan=[], byCode={};
+ for(const n of famusPieces())(byCode[n.code]||(byCode[n.code]=[])).push(n.length);
+ for(const code in byCode){
+   const p=findP(code);if(!p||!p.length)continue;
+   const needs=byCode[code].sort((a,b)=>b-a);
+   const cutBins=C.filter(z=>z.code===code&&z.status==="DOSTUPNÝ"&&z.qty>0).flatMap(z=>Array.from({length:z.qty},()=>({kind:"cut",cutId:z.id,remaining:z.length,used:false})));
+   const barBins=[];
+   for(const need of needs){
+     let candidates=[...cutBins,...barBins].filter(b=>b.remaining>=need+5).sort((a,b)=>a.remaining-b.remaining);
+     let bin=candidates[0];
+     if(!bin&&barBins.length<p.qty){bin={kind:"bar",remaining:p.length,used:false};barBins.push(bin)}
+     if(!bin||bin.remaining<need+5)continue;
+     bin.remaining-=need+5;bin.used=true;
+   }
+   const usedCuts=cutBins.filter(b=>b.used);
+   const cutCount={};for(const b of usedCuts)cutCount[b.cutId]=(cutCount[b.cutId]||0)+1;
+   for(const id in cutCount)plan.push({job:"FAMUS pergola",code,kind:"cut",cutId:id,qty:cutCount[id]});
+   const bars=barBins.filter(b=>b.used).length;if(bars)plan.push({job:"FAMUS pergola",code,kind:"bar",qty:bars});
+ }
+ return plan;
+}
 $("#reserveFamus").onclick=()=>{
  if(famusReserved)return alert("FAMUS pergola je už rezervovaná.");
  const audit=renderFamusAudit(), missing=audit.filter(x=>!x.ok);
  if(missing.length&&!confirm("Niektoré profily chýbajú. Rezervovať dostupný materiál aj napriek tomu?"))return;
- const needs=[];
- for(const x of D.famus)for(let i=0;i<x.qty;i++)needs.push({code:x.code,length:x.length});
- needs.sort((a,b)=>b.length-a.length);
- for(const n of needs){
-   const p=findP(n.code);if(!p)continue;
-   const cut=C.filter(z=>z.code===n.code&&z.status==="DOSTUPNÝ"&&(z.qty-reservedCutFor(z.id))>0&&z.length>=n.length+5).sort((a,b)=>a.length-b.length)[0];
-   if(cut){R.push({job:"FAMUS pergola",code:n.code,kind:"cut",cutId:cut.id,qty:1,length:n.length});continue}
-   const already=reservedFor(n.code), freeBars=Math.max(0,p.qty-already);
-   if(freeBars>0)R.push({job:"FAMUS pergola",code:n.code,kind:"bar",qty:1,length:n.length});
- }
+ const plan=planFamusReservation();for(const r of plan)R.push(r);
  famusReserved=true;
  H.unshift({id:Date.now()+"-FAMUS",time:new Date().toLocaleString("sk-SK"),type:"REZERVÁCIA PRE VÝROBU",code:"FAMUS-PERGOLA",color:"—",qty:1,length:"—",job:"FAMUS pergola",cancelled:false,effect:{kind:"reservation"}});
  $("#reserveFamus").textContent="Rezervované ✓";$("#reserveFamus").disabled=true;
- render();
- renderFamusAudit();
- $("#evaluation").insertAdjacentHTML("afterbegin",'<div class="note"><b>FAMUS rezervované.</b> Stĺpce Rezervované a Voľné v sklade sú aktualizované.</div>');
+ render();renderFamusAudit();
+ $("#evaluation").insertAdjacentHTML("afterbegin",'<div class="note"><b>FAMUS rezervované podľa rezacieho plánu.</b> Odrezky sa využívajú pred celými tyčami a z jednej celej tyče sa môže narezať viac dielov.</div>');
 };
 
 const DUBNICA_REQ=[
