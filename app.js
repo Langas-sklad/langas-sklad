@@ -103,6 +103,28 @@ function renderFamusAudit(){
 }
 
 
+
+$("#reserveFamus").onclick=()=>{
+ if(famusReserved)return alert("FAMUS pergola je už rezervovaná.");
+ const audit=renderFamusAudit(), missing=audit.filter(x=>!x.ok);
+ if(missing.length&&!confirm("Niektoré profily chýbajú. Rezervovať dostupný materiál aj napriek tomu?"))return;
+ const byCode={};
+ for(const x of D.famus)byCode[x.code]=(byCode[x.code]||0)+(x.length*x.qty);
+ for(const code in byCode){
+   const p=findP(code);if(!p||!p.length)continue;
+   const cutsMm=C.filter(z=>z.code===code&&z.status==="DOSTUPNÝ").reduce((s,z)=>s+z.length*z.qty,0);
+   const mmFromBars=Math.max(0,byCode[code]-cutsMm);
+   const bars=Math.min(p.qty,Math.ceil(mmFromBars/p.length));
+   if(bars>0)R.push({job:"FAMUS pergola",code,qty:bars});
+ }
+ famusReserved=true;
+ H.unshift({id:Date.now()+"-FAMUS",time:new Date().toLocaleString("sk-SK"),type:"REZERVÁCIA PRE VÝROBU",code:"FAMUS-PERGOLA",color:"—",qty:1,length:"—",job:"FAMUS pergola",cancelled:false,effect:{kind:"reservation"}});
+ $("#reserveFamus").textContent="Rezervované ✓";$("#reserveFamus").disabled=true;
+ render();
+ renderFamusAudit();
+ $("#evaluation").insertAdjacentHTML("afterbegin",'<div class="note"><b>FAMUS rezervované.</b> Stĺpce Rezervované a Voľné v sklade sú aktualizované.</div>');
+};
+
 const DUBNICA_REQ=[
  {code:"W.6216",label:"Bočný profil",need:70,unit:"ks",length:1429},
  {code:"W.6218",label:"Koľajnica",need:70,unit:"dielov",length:3330,note:"35 horných vcelku + 35 spodných max. 2 diely"},
