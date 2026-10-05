@@ -203,4 +203,24 @@ $("#reserveDubnica").onclick=()=>{
  render();
 };
 
-function makePrint(){let g=document.querySelector('input[name="gut"]:checked').value==="custom"?[...document.querySelectorAll(".glen")].map(x=>+x.value):[4000,4000,3992];$("#printBody").innerHTML=D.famus.map(x=>`<h3>${x.code} – ${x.name}</h3><p>${x.qty} × ${x.length} mm</p>`).join('')+`<h3>W.2309 – delenie žľabu</h3><p>${g.join(" + ")} mm</p>`;show("print")}bindFilters();render();checkGut();syncLengthMode();
+function makePrint(){let g=document.querySelector('input[name="gut"]:checked').value==="custom"?[...document.querySelectorAll(".glen")].map(x=>+x.value):[4000,4000,3992];$("#printBody").innerHTML=D.famus.map(x=>`<h3>${x.code} – ${x.name}</h3><p>${x.qty} × ${x.length} mm</p>`).join('')+`<h3>W.2309 – delenie žľabu</h3><p>${g.join(" + ")} mm</p>`;show("print")}
+let onlineOrders=[];
+function drawOrderPreview(){
+ const d=+$("#ordD").value,w=+$("#ordW").value,h=+$("#ordH").value,side=$("#ordSide").value,color=$("#ordColor").value==="Iná RAL"?($("#ordRal").value||"Iná RAL"):$("#ordColor").value;
+ $("#previewTitle").textContent="Folding "+$("#ordGlass").value+" · "+d+"D";
+ $("#previewDims").textContent=w+" × "+h+" mm";
+ let panels="";for(let i=1;i<=d;i++)panels+='<div class="glassPanel"><span>'+i+'</span><div class="arrow">'+(side==="Ľavá"?"◀":"▶")+'</div></div>';
+ $("#framePreview").innerHTML=panels;
+ $("#previewMeta").innerHTML='<b>'+side+' otváranie</b> · '+$("#ordComp").value+' kompenzátor · Fix: '+$("#ordFix").value+' · <b>'+color+'</b>';
+ $("#customRalWrap").classList.toggle("hidden",$("#ordColor").value!=="Iná RAL");
+}
+["ordW","ordH","ordD","ordGlass","ordSide","ordComp","ordFix","ordColor","ordRal"].forEach(id=>$("#"+id).addEventListener("input",drawOrderPreview));
+function renderOnlineOrders(){
+ $("#orderList").innerHTML=onlineOrders.length?'<table><tr><th>Poz.</th><th>Zákazka</th><th>Rozmer</th><th>Krídla</th><th>Sklo</th><th>Strana</th><th>Farba</th><th>Ks</th></tr>'+onlineOrders.map(x=>'<tr><td>'+x.pos+'</td><td>'+x.name+'</td><td>'+x.w+' × '+x.h+'</td><td>'+x.d+'D</td><td>'+x.glass+'</td><td>'+x.side+'</td><td>'+x.color+'</td><td>'+x.qty+'</td></tr>').join('')+'</table>':'<span class="muted">Zatiaľ nebol pridaný žiadny systém.</span>';
+}
+function currentOnlineOrder(){return{name:$("#ordName").value,pos:$("#ordPos").value,w:+$("#ordW").value,h:+$("#ordH").value,d:+$("#ordD").value,glass:$("#ordGlass").value,side:$("#ordSide").value,comp:$("#ordComp").value,fix:$("#ordFix").value,color:$("#ordColor").value==="Iná RAL"?($("#ordRal").value||"Iná RAL"):$("#ordColor").value,qty:+$("#ordQty").value||1}}
+$("#addOrder").onclick=()=>{onlineOrders.push(currentOnlineOrder());renderOnlineOrders();$("#ordPos").value=String(onlineOrders.length+1)};
+$("#duplicateOrder").onclick=()=>{$("#ordPos").value=String(onlineOrders.length+1);$("#orderMsg").innerHTML='<div class="note">Parametre zostali zachované. Zmeň iba údaje, ktoré sa líšia, a klikni Pridať do objednávky.</div>'};
+$("#sendOrder").onclick=()=>{if(!onlineOrders.length)return alert("Najprv pridaj aspoň jeden systém.");$("#orderMsg").innerHTML='<div class="note"><b>Objednávka XY bola vytvorená.</b> Toto je zatiaľ prototyp – v ďalšej fáze ju napojíme na prihlásenie odberateľa, notifikáciu LANGAS a automatické vytvorenie výrobného listu.</div>'};
+drawOrderPreview();renderOnlineOrders();
+bindFilters();render();checkGut();syncLengthMode();
