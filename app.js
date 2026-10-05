@@ -204,7 +204,7 @@ $("#reserveDubnica").onclick=()=>{
 };
 
 function makePrint(){let g=document.querySelector('input[name="gut"]:checked').value==="custom"?[...document.querySelectorAll(".glen")].map(x=>+x.value):[4000,4000,3992];$("#printBody").innerHTML=D.famus.map(x=>`<h3>${x.code} – ${x.name}</h3><p>${x.qty} × ${x.length} mm</p>`).join('')+`<h3>W.2309 – delenie žľabu</h3><p>${g.join(" + ")} mm</p>`;show("print")}
-let onlineOrders=[];
+let onlineOrders=[],editingOrder=-1;
 function drawOrderPreview(){
  const d=+$("#ordD").value,w=+$("#ordW").value,h=+$("#ordH").value,side=$("#ordSide").value,color=$("#ordColor").value==="Iná RAL"?($("#ordRal").value||"Iná RAL"):$("#ordColor").value;
  $("#previewTitle").textContent="Folding "+$("#ordGlass").value+" · "+d+"D";
@@ -216,10 +216,17 @@ function drawOrderPreview(){
 }
 ["ordW","ordH","ordD","ordGlass","ordSide","ordComp","ordFix","ordColor","ordRal"].forEach(id=>$("#"+id).addEventListener("input",drawOrderPreview));
 function renderOnlineOrders(){
- $("#orderList").innerHTML=onlineOrders.length?'<table><tr><th>Poz.</th><th>Zákazka</th><th>Rozmer</th><th>Krídla</th><th>Sklo</th><th>Strana</th><th>Farba</th><th>Ks</th></tr>'+onlineOrders.map(x=>'<tr><td>'+x.pos+'</td><td>'+x.name+'</td><td>'+x.w+' × '+x.h+'</td><td>'+x.d+'D</td><td>'+x.glass+'</td><td>'+x.side+'</td><td>'+x.color+'</td><td>'+x.qty+'</td></tr>').join('')+'</table>':'<span class="muted">Zatiaľ nebol pridaný žiadny systém.</span>';
+ $("#orderList").innerHTML=onlineOrders.length?'<table><tr><th>Poz.</th><th>Zákazka</th><th>Rozmer</th><th>Krídla</th><th>Sklo</th><th>Strana</th><th>Farba</th><th>Ks</th><th>Akcia</th></tr>'+onlineOrders.map((x,i)=>'<tr><td>'+x.pos+'</td><td>'+x.name+'</td><td>'+x.w+' × '+x.h+'</td><td>'+x.d+'D</td><td>'+x.glass+'</td><td>'+x.side+'</td><td>'+x.color+'</td><td>'+x.qty+'</td><td><button class="gray editOrder" data-i="'+i+'" title="Upraviť">✏️</button></td></tr>').join('')+'</table>':'<span class="muted">Zatiaľ nebol pridaný žiadny systém.</span>';
+ setTimeout(()=>document.querySelectorAll(".editOrder").forEach(b=>b.onclick=()=>loadOnlineOrder(+b.dataset.i)),0);
+}
+function loadOnlineOrder(i){
+ const x=onlineOrders[i];if(!x)return;editingOrder=i;
+ $("#ordName").value=x.name;$("#ordPos").value=x.pos;$("#ordW").value=x.w;$("#ordH").value=x.h;$("#ordD").value=x.d;$("#ordGlass").value=x.glass;$("#ordSide").value=x.side;$("#ordComp").value=x.comp;$("#ordFix").value=x.fix;$("#ordQty").value=x.qty;
+ const standard=["Surová","RAL 9016","RAL 7016","RAL 9005"];if(standard.includes(x.color))$("#ordColor").value=x.color;else{$("#ordColor").value="Iná RAL";$("#ordRal").value=x.color}
+ $("#addOrder").textContent="✓ Uložiť zmeny";drawOrderPreview();scrollTo(0,0);
 }
 function currentOnlineOrder(){return{name:$("#ordName").value,pos:$("#ordPos").value,w:+$("#ordW").value,h:+$("#ordH").value,d:+$("#ordD").value,glass:$("#ordGlass").value,side:$("#ordSide").value,comp:$("#ordComp").value,fix:$("#ordFix").value,color:$("#ordColor").value==="Iná RAL"?($("#ordRal").value||"Iná RAL"):$("#ordColor").value,qty:+$("#ordQty").value||1}}
-$("#addOrder").onclick=()=>{onlineOrders.push(currentOnlineOrder());renderOnlineOrders();$("#ordPos").value=String(onlineOrders.length+1)};
+$("#addOrder").onclick=()=>{let x=currentOnlineOrder();if(editingOrder>=0){onlineOrders[editingOrder]=x;editingOrder=-1;$("#addOrder").textContent="+ Pridať do objednávky";$("#orderMsg").innerHTML='<div class="note">Zmeny systému boli uložené.</div>'}else{onlineOrders.push(x);$("#ordPos").value=String(onlineOrders.length+1)}renderOnlineOrders();drawOrderPreview()};
 $("#duplicateOrder").onclick=()=>{$("#ordPos").value=String(onlineOrders.length+1);$("#orderMsg").innerHTML='<div class="note">Parametre zostali zachované. Zmeň iba údaje, ktoré sa líšia, a klikni Pridať do objednávky.</div>'};
 $("#sendOrder").onclick=()=>{if(!onlineOrders.length)return alert("Najprv pridaj aspoň jeden systém.");$("#orderMsg").innerHTML='<div class="note"><b>Objednávka XY bola vytvorená.</b> Toto je zatiaľ prototyp – v ďalšej fáze ju napojíme na prihlásenie odberateľa, notifikáciu LANGAS a automatické vytvorenie výrobného listu.</div>'};
 drawOrderPreview();renderOnlineOrders();
