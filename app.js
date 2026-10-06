@@ -207,9 +207,9 @@ function makePrint(){let g=document.querySelector('input[name="gut"]:checked').v
 let onlineOrders=[],editingOrder=-1,submittedOrders=[];
 function drawOrderPreview(){
  const d=+$("#ordD").value,w=+$("#ordW").value,h=+$("#ordH").value,side=$("#ordSide").value,color=$("#ordColor").value==="Iná RAL"?($("#ordRal").value||"Iná RAL"):$("#ordColor").value;
- $("#previewTitle").textContent="Folding "+$("#ordGlass").value+" · "+d+"D";
+ $("#previewTitle").textContent="Rámové zasklenie · "+$("#ordGlass").value+" · "+(d>10?String(d)[0]+"D+"+String(d)[1]+"D":d+"D");
  $("#previewDims").textContent=w+" × "+h+" mm";
- let panels="";for(let i=1;i<=d;i++)panels+='<div class="glassPanel"><span>'+i+'</span><div class="arrow">'+(side==="Ľavá"?"◀":"▶")+'</div></div>';
+ let panelCount=d>10?(+String(d)[0])+(+String(d)[1]):d;let panels="";for(let i=1;i<=panelCount;i++)panels+='<div class="glassPanel"><span>'+i+'</span><div class="arrow">'+(side==="Ľavá"?"◀":"▶")+'</div></div>';
  $("#framePreview").innerHTML=panels;
  $("#previewMeta").innerHTML='<b>'+side+' otváranie</b> · '+$("#ordComp").value+' kompenzátor · Fix: '+$("#ordFix").value+' · <b>'+color+'</b>';
  $("#customRalWrap").classList.toggle("hidden",$("#ordColor").value!=="Iná RAL");
