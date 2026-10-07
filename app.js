@@ -224,7 +224,7 @@ function drawOrderPreview(){
  const d=+$("#ordD").value,w=+$("#ordW").value,h=+$("#ordH").value,side=$("#ordSide").value,color=$("#ordColor").value==="Iná RAL"?($("#ordRal").value||"Iná RAL"):$("#ordColor").value;
  let panelCount=d>10?(+String(d)[0])+(+String(d)[1]):d,panels="",arrow=side==="Ľavá"?"→":side==="Pravá"?"←":"↔";
  for(let i=1;i<=panelCount;i++)panels+='<div class="glassPanel"><span>'+i+'</span><div class="arrow">'+arrow+'</div></div>';
- $("#framePreview").innerHTML=panels;$("#heroW").textContent=w+" mm";$("#heroH").textContent=h+" mm";$("#heroType").textContent=sysLabel(d);$("#heroColor").textContent="● "+color;
+ $(".heroPreview").classList.toggle("balconyScene",h<=1800);$(".heroPreview").classList.toggle("fullHeightScene",h>1800);$("#framePreview").innerHTML=panels;$("#heroW").textContent=w+" mm";$("#heroH").textContent=h+" mm";$("#heroType").textContent=sysLabel(d);$("#heroColor").textContent="● "+color;
  $("#orientationPreview").innerHTML=sideOpts.map(x=>'<div class="oriMini '+(x[0]===side?'selected':'')+'">'+panelIcon(d)+'<span>'+x[2]+'</span><b>'+x[1]+'</b></div>').join("");
  $("#customRalWrap").classList.toggle("hidden",$("#ordColor").value!=="Iná RAL");
  let glass=$("#ordGlass").value+" – "+$("#ordGlassVariant").value;
