@@ -264,6 +264,30 @@ function openV7(i){const o=submittedOrders[i],el=$("#v7detail-"+i);el.classList.
 }
 function printV7(i){let o=submittedOrders[i],body=$("#v7PrintArea");body.innerHTML='<h1>LANGAS · Súhrn objednávky</h1><h2>'+safe(o.id)+'</h2><p>Odberateľ: '+safe(o.customer)+' · Zákazka: '+safe(o.name)+' · Dátum: '+safe(o.time)+'</p>'+o.items.map(x=>'<div class="v7position"><h3>Pozícia '+safe(x.pos)+' · '+sysLabel(x.d)+' · '+safe(x.qty)+' ks</h3>'+positionDrawing(x)+'<img class="v7qr" src="'+v7QrImage(v7QrPayload(o,x))+'" alt="QR pozície"><p>'+safe(x.w)+' × '+safe(x.h)+' mm · '+safe(x.glass)+' · '+safe(x.color)+' · '+safe(x.side)+'</p></div>').join('')+'<p>Pracovný súhrn – NIE výrobný list.</p>';window.print()}
 $("#sendOrder").onclick=()=>{if(!onlineOrders.length)return alert("Najprv pridaj systém.");let id="TEST-"+new Date().getFullYear()+"-"+String(submittedOrders.length+1).padStart(4,"0");submittedOrders.unshift({id,customer:"XY",name:$("#ordName").value,time:new Date().toLocaleString("sk-SK"),stage:0,items:structuredClone(onlineOrders).map(x=>({...x,done:0}))});$("#orderMsg").innerHTML='<div class="note"><b>'+id+' odoslaná.</b> Otvor Nové objednávky a vyskúšaj schvaľovanie aj výrobu.</div>';onlineOrders=[];renderOnlineOrders();renderNewOrders()};
+let v7CameraStream=null,v7CameraFrame=null;
+async function startV7Camera(){
+ const video=$("#v7CameraVideo"),status=$("#v7CameraStatus");
+ if(!navigator.mediaDevices?.getUserMedia){status.textContent="Kamera nie je dostupná. Použi HTTPS a Safari/Chrome.";return}
+ try{
+  v7CameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});
+  video.srcObject=v7CameraStream;video.classList.remove("hidden");await video.play();
+  status.textContent="Namier kameru na QR kód výrobného listu.";
+  const canvas=document.createElement("canvas"),ctx=canvas.getContext("2d",{willReadFrequently:true});
+  function tick(){
+   if(!v7CameraStream)return;
+   if(video.readyState>=2&&video.videoWidth){canvas.width=video.videoWidth;canvas.height=video.videoHeight;ctx.drawImage(video,0,0,canvas.width,canvas.height);
+    const frame=ctx.getImageData(0,0,canvas.width,canvas.height);
+    const result=typeof jsQR==="function"?jsQR(frame.data,frame.width,frame.height,{inversionAttempts:"attemptBoth"}):null;
+    if(result){stopV7Camera();$("#v7QrInput").value=result.data;status.textContent="QR načítaný: "+result.data;v7QrScan(result.data);return}
+   }
+   v7CameraFrame=requestAnimationFrame(tick);
+  }
+  tick();
+ }catch(e){status.textContent="Nepodarilo sa spustiť kameru: "+e.message}
+}
+function stopV7Camera(){if(v7CameraFrame)cancelAnimationFrame(v7CameraFrame);v7CameraFrame=null;if(v7CameraStream){v7CameraStream.getTracks().forEach(t=>t.stop());v7CameraStream=null}const video=$("#v7CameraVideo");if(video){video.pause();video.srcObject=null;video.classList.add("hidden")}}
+$("#v7StartCamera").onclick=startV7Camera;
+$("#v7StopCamera").onclick=stopV7Camera;
 const qrInput=document.querySelector("#v7QrInput");if(qrInput)document.querySelector("#v7QrSubmit").onclick=()=>v7QrScan(qrInput.value);
 syncCards();drawOrderPreview();renderOnlineOrders();renderNewOrders();
 bindFilters();render();checkGut();syncLengthMode();
