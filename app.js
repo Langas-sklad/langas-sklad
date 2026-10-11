@@ -262,20 +262,28 @@ function openV7(i){const o=submittedOrders[i],el=$("#v7detail-"+i);el.classList.
  el.querySelector(".v7print").onclick=()=>printV7(i);el.querySelectorAll(".v7productionBtn").forEach(b=>b.onclick=()=>productionStandard(+b.dataset.i,+b.dataset.j));
  el.querySelectorAll(".v7finish").forEach(b=>b.onclick=()=>{let x=o.items[+b.dataset.j];if(o.stage<2){alert("Najprv klikni Potvrdiť objednávku a potom Začať výrobu. Až následne môže QR potvrdiť dokončenie.");return}if(x.done>=x.qty){alert("Táto pozícia je už dokončená.");return}if(confirm("QR načítaný: "+o.id+" / pozícia "+x.pos+"\\nPotvrdiť dokončenie 1 ks?")){x.done++;renderNewOrders();openV7(i);let d=$("#v7detail-"+i);d.insertAdjacentHTML("afterbegin",'<div class="note">✓ QR simulácia: dokončenie pozície '+safe(x.pos)+' bolo zaznamenané.</div>')}});
 }
-const refAdd={2:19,3:27.3,4:31.5,5:34,6:35.7};
-function canMakeStandard(x){return Number(x.d)>=2&&Number(x.d)<=6&&Number(x.w)===3600&&Number(x.h)===1500&&x.glass==="4 mm – Číre"&&x.color==="RAL 7016"&&x.comp==="Nie"&&x.fix==="Nie"}
-function fmtMm(n){return Number(n.toFixed(4)).toLocaleString("sk-SK",{maximumFractionDigits:4})}
+const specs={2:[2,19],3:[3,27.3],4:[4,31.5],5:[5,34],6:[6,35.7],22:[4,19.8,2],33:[6,27.8,3],44:[8,31.9,4],55:[10,34.3,5],66:[12,36.2,6]};
+function calcProduction(x){
+ let s=specs[x.d],w=+x.w,h=+x.h;if(!s||w<=0||h<=0)throw Error("Neplatný systém alebo rozmer");
+ let n=s[0],dual=!!s[2],eff=h-(x.comp==="Áno"?50:0),top=eff>2300,wing=w/n+s[1],vert=eff-33,hor=wing-88;
+ let g=x.glass.split(" – ")[0],is4=g==="4 mm";if(!is4&&g!=="6 mm"&&g!=="VSG 33.1")throw Error("Nepodporované sklo");
+ let gw=hor+(is4?8:13),gh=vert-(is4?92:87);if(Math.min(vert,hor,gw,gh)<=0)throw Error("Neplatné výrobné rozmery");
+ let normal=top?0:(dual?2*n-4:2*n-2),both=x.fix==="Áno"?(dual?4:2):0;
+ let handle=x.fix==="Áno"?(top?2*n-both:0):(top?2*n:(dual?4:2));
+ let rail=dual?s[2]:n,split=rail===4&&w>7060;
+ let brush=(vert*(normal+handle+both)+hor*4*n)/1000;
+ let epdm=is4?2*(gw+gh)*n/1000:2*(hor+8+vert-92)*n/1000+0.044;
+ return {n,dual,eff,wing,vert,hor,gw,gh,normal,handle,both,rail,split,brush,epdm,is4};
+}
+function canMakeStandard(x){try{calcProduction(x);return true}catch(e){return false}}
+function fmtMm(v){return Number(v.toFixed(4)).toLocaleString("sk-SK",{maximumFractionDigits:4})}
 function productionStandard(i,j){
- const o=submittedOrders[i],x=o?.items[j];if(!o||!x)return;
- if(o.stage<1){alert("Najprv potvrď objednávku.");return}
- if(!canMakeStandard(x)){alert("V tejto fáze sú povolené iba referenčné konfigurácie 2D–6D: 3600 × 1500 mm, 4 mm číre, RAL 7016, bez teleskopu a obojstranného madla. Ostatné rozmery zatiaľ blokujeme.");return}
- const d=Number(x.d),wing=3600/d+refAdd[d],horiz=wing-88,glassW=horiz+8;
- const rows=[[d+"-koľajový profil","3600","2"],["Dorazový profil","1483","2"],["Vertikálny profil","1467",String(2*d-2)],["Vertikálny profil s madlom","1467","2"],["Horizontálny profil",fmtMm(horiz),String(2*d)]];
- const table=rows.map(r=>'<tr>'+r.map(v=>'<td>'+safe(v)+'</td>').join("")+'</tr>').join("");
- const accessory=d===4?'<h3>Tesnenia a príslušenstvo</h3><p>EPDM 17,812 bm · Kefka 25,232 bm · Kolieska 8 ks · Skrutky 16 ks · Podkovičky 16 ks · Krytky 16 ks / systém</p>':'<h3>Tesnenia a príslušenstvo</h3><p><b>Neoverené pre tlač:</b> pred použitím vo výrobe doplniť presné množstvá podľa Excelu.</p>';
- const body=$("#v7PrintArea");
- body.innerHTML='<div class="v7production"><h1>LANGAS · VÝROBNÝ LIST</h1><p><b>REFERENČNÝ TEST – NEPOUŽÍVAŤ BEZ KONTROLY VÝROBY</b></p><p><b>'+safe(o.id)+'</b> · Pozícia '+safe(x.pos)+' · '+safe(o.customer)+' · '+safe(o.name)+'</p><p>Dátum objednávky: '+safe(o.time)+' · Počet systémov: '+safe(x.qty)+'</p><h2>Rámové '+d+'D · 3600 × 1500 mm</h2><p>4 mm číre · RAL 7016 · Pohľad z interiéru · Orientácia: '+safe(x.side)+'</p>'+positionDrawing(x)+'<h3>Rezací plán – na 1 systém</h3><table><thead><tr><th>Profil</th><th>Rez [mm]</th><th>Ks</th></tr></thead><tbody>'+table+'</tbody></table><h3>Sklo</h3><p>4 mm číre · <b>'+fmtMm(glassW)+' × 1375 mm · '+d+' ks</b> / systém</p>'+accessory+'<div><img class="v7qr" src="'+v7QrImage(v7QrPayload(o,x))+'" alt="QR pozície"><small>'+safe(v7QrPayload(o,x))+'</small></div><p>Vyrobil: _______________ &nbsp; Skontroloval: _______________</p><p>Referenčná tlačová skúška. Nie je to univerzálny výrobný list pre ľubovoľný rozmer.</p></div>';
- window.print();
+ const o=submittedOrders[i],x=o?.items[j];if(!o||!x)return;if(o.stage<1)return alert("Najprv potvrď objednávku.");
+ let p;try{p=calcProduction(x)}catch(e){return alert(e.message)}
+ const rows=[[p.rail+"-koľajový profil",p.split?x.w/2:x.w,p.split?4:2],["Dorazový profil",p.eff-17,2],["Vertikálny profil",p.vert,p.normal],["Vertikálny profil s madlom",p.vert,p.handle],["Vertikálny profil s madlom obojstranne",p.vert,p.both],["Horizontálny profil",p.hor,p.n*2],["Stredový dorazový profil",p.vert,p.dual?1:0],["Teleskop 1 a 2",+x.w,x.comp==="Áno"?1:0]].filter(r=>r[2]);
+ let tab=rows.map(r=>'<tr><td>'+safe(r[0])+'</td><td>'+fmtMm(+r[1])+'</td><td>'+r[2]+'</td></tr>').join("");
+ let qr=v7QrPayload(o,x);
+ $("#v7PrintArea").innerHTML='<div class="v7production"><h1>LANGAS · VÝROBNÝ LIST</h1><p><b>TESTOVACÍ VÝSTUP – OVERIŤ PRED VÝROBOU</b></p><p>'+safe(o.id)+' · Pozícia '+safe(x.pos)+' · '+safe(o.customer)+' · '+safe(o.name)+' · '+safe(o.time)+'</p><h2>'+sysLabel(x.d)+' · '+safe(x.w)+' × '+safe(x.h)+' mm · '+safe(x.qty)+' ks</h2><p>'+safe(x.glass)+' · '+safe(x.color)+' · Pohľad z interiéru · '+safe(x.side)+'</p>'+positionDrawing(x)+'<h3>Profily – na 1 systém</h3><table><tr><th>Profil</th><th>Rez mm</th><th>Ks</th></tr>'+tab+'</table><h3>Sklo</h3><p>'+fmtMm(p.gw)+' × '+fmtMm(p.gh)+' mm · '+p.n+' ks / systém</p><h3>Tesnenia a príslušenstvo</h3><p>EPDM '+fmtMm(p.epdm)+' bm · Kefka '+fmtMm(p.brush)+' bm · Kolieska '+p.n*2+' ks · Skrutky, podkovičky a krytky po '+p.n*4+' ks</p><img class="v7qr" src="'+v7QrImage(qr)+'"><p>'+safe(qr)+'</p><p>Vyrobil: ____________ Skontroloval: ____________</p></div>';window.print();
 }
 function printV7(i){let o=submittedOrders[i],body=$("#v7PrintArea");body.innerHTML='<h1>LANGAS · Súhrn objednávky</h1><h2>'+safe(o.id)+'</h2><p>Odberateľ: '+safe(o.customer)+' · Zákazka: '+safe(o.name)+' · Dátum: '+safe(o.time)+'</p>'+o.items.map(x=>'<div class="v7position"><h3>Pozícia '+safe(x.pos)+' · '+sysLabel(x.d)+' · '+safe(x.qty)+' ks</h3>'+positionDrawing(x)+'<img class="v7qr" src="'+v7QrImage(v7QrPayload(o,x))+'" alt="QR pozície"><p>'+safe(x.w)+' × '+safe(x.h)+' mm · '+safe(x.glass)+' · '+safe(x.color)+' · '+safe(x.side)+'</p></div>').join('')+'<p>Pracovný súhrn – NIE výrobný list.</p>';window.print()}
 $("#sendOrder").onclick=()=>{if(!onlineOrders.length)return alert("Najprv pridaj systém.");let id="TEST-"+new Date().getFullYear()+"-"+String(submittedOrders.length+1).padStart(4,"0");submittedOrders.unshift({id,customer:"XY",name:$("#ordName").value,time:new Date().toLocaleString("sk-SK"),stage:0,items:structuredClone(onlineOrders).map(x=>({...x,done:0}))});$("#orderMsg").innerHTML='<div class="note"><b>'+id+' odoslaná.</b> Otvor Nové objednávky a vyskúšaj schvaľovanie aj výrobu.</div>';onlineOrders=[];renderOnlineOrders();renderNewOrders()};
