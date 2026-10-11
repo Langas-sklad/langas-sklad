@@ -289,13 +289,18 @@ function printPackageLabels(i){
  const o=submittedOrders[i],pkgs=packagesFor(o);
  const labels=pkgs.map(p=>{
   const isWing=p.kind.startsWith("Krídlo");
-  const wingNumber=isWing?p.kind.match(/\\d+/)?.[0]:"";
+  const wingNumber=isWing?String(p.kind.match(/[0-9]+/)[0]):"";
   const shortCode="P"+String(p.pos).padStart(2,"0")+(isWing?"-K"+wingNumber:"-PROF");
   const title=isWing?"KRÍDLO "+wingNumber+" / "+calcProduction(p.x).n:"PROFILY SYSTÉMU";
-  return '<div class="v86label"><div class="v86top"><strong>LANGAS</strong><span>'+safe(title)+'</span></div><div class="v86body"><div class="v86left"><div class="v86order">'+safe(o.id)+'</div><div>'+safe(o.name)+'</div><div class="v86system">'+sysLabel(p.x.d)+' · '+safe(p.x.w)+' × '+safe(p.x.h)+'</div><div>'+safe(p.x.color)+' · '+safe(p.x.glass)+'</div></div><div class="v86middle"><strong>'+safe(shortCode)+'</strong><span>'+(isWing?"KRÍDLO":"PROFILY")+'</span></div><div class="v86qr"><img src="'+v7QrImage("LANGAS|PKG|"+p.id)+'" alt="QR '+safe(shortCode)+'"></div></div></div>';
+  return '<article class="label"><div class="top"><b>LANGAS</b><span>'+safe(title)+'</span></div><div class="body"><div class="left"><div>'+safe(o.id)+'</div><div>'+safe(o.name)+'</div><strong>'+sysLabel(p.x.d)+' · '+safe(p.x.w)+' × '+safe(p.x.h)+'</strong><div>'+safe(p.x.color)+' · '+safe(p.x.glass)+'</div></div><div class="middle"><b>'+safe(shortCode)+'</b><span>'+(isWing?"KRÍDLO":"PROFILY")+'</span></div><div class="qr"><img src="'+v7QrImage("LANGAS|PKG|"+p.id)+'" alt="QR"></div></div></article>';
  }).join("");
- $("#v7PrintArea").innerHTML='<div class="v86labels">'+labels+'</div>';
- window.print();
+ const css='@page{size:100mm 50mm;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0;background:white;color:#111;font-family:Arial,sans-serif}.label{width:100mm;height:50mm;padding:2.2mm;border:0.3mm solid #333;display:flex;flex-direction:column;break-after:page;page-break-after:always;overflow:hidden}.label:last-child{break-after:auto;page-break-after:auto}.top{height:15mm;display:flex;align-items:center;justify-content:space-between;border-bottom:.2mm solid #333;flex-shrink:0}.top b{font-size:14pt}.top span{font-size:9pt}.body{display:grid;grid-template-columns:51% 31% 18%;align-items:center;flex:1;min-height:0}.left{font-size:8.5pt;line-height:1.6;white-space:nowrap}.left strong{display:block;font-size:9pt}.middle{display:flex;flex-direction:column;gap:2mm;font-size:9pt}.middle span{font-size:8pt}.qr img{width:14mm;height:14mm;display:block}';
+ const win=window.open("","_blank");
+ if(!win){alert("Povoľ v prehliadači otváranie okien pre tlač etikiet.");return}
+ win.document.open();
+ win.document.write('<!doctype html><html lang="sk"><head><meta charset="utf-8"><title>LANGAS · Etikety '+safe(o.id)+'</title><style>'+css+'</style></head><body>'+labels+'</body></html>');
+ win.document.close();
+ win.onload=()=>{Promise.all(Array.from(win.document.images).map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.onload=resolve;img.onerror=resolve}))).then(()=>win.print())};
 }
 function renderShipped(){
  const host=$("#shippedList");if(!host)return;
