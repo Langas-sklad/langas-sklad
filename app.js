@@ -258,6 +258,39 @@ function shipmentParts(o){
  });
  return lines;
 }
+const packageScans=new Set();
+function packagesFor(o){
+ const all=[];
+ o.items.forEach(x=>{
+  const p=calcProduction(x);
+  for(let system=1;system<=Number(x.qty);system++){
+   const base=o.id+"-P"+String(x.pos).padStart(2,"0")+"-S"+String(system).padStart(3,"0");
+   for(let wing=1;wing<=p.n;wing++)all.push({id:base+"-K"+wing,order:o.id,pos:x.pos,system,kind:"Krídlo "+wing+" / "+p.n,x});
+   all.push({id:base+"-PROF",order:o.id,pos:x.pos,system,kind:"Profily systému",x});
+  }
+ });
+ return all;
+}
+function packageRows(pkg){
+ if(!pkg.kind.startsWith("Profily"))return "Hotové "+pkg.kind;
+ const p=calcProduction(pkg.x);
+ return "Horná "+p.rail+"-koľajová: 1 ks, "+pkg.x.w+" mm; spodná: 1 ks, "+pkg.x.w+" mm; doraz: 2 ks, "+fmtMm(p.eff-17)+" mm"+(p.dual?"; stredový doraz: 1 ks":"");
+}
+function scanPackageV86(i){
+ const o=submittedOrders[i],code=prompt("Zadaj alebo naskenuj identifikátor QR balenia:");
+ if(!code)return;
+ const pkg=packagesFor(o).find(p=>p.id===code.trim());
+ if(!pkg)return alert("QR nepatrí k tejto zákazke.");
+ if(packageScans.has(pkg.id))return alert("Balenie už bolo zaznamenané.");
+ if(!confirm(pkg.id+"\\n"+packageRows(pkg)+"\\nPotvrdiť nakládku?"))return;
+ packageScans.add(pkg.id);renderShipped();openShipment(i);
+}
+function printPackageLabels(i){
+ const o=submittedOrders[i],pkgs=packagesFor(o);
+ const labels=pkgs.map(p=>'<div class="v86label"><header><b>LANGAS</b><span>'+safe(p.kind)+'</span></header><div class="v86columns"><div><b>'+safe(o.id)+'</b><p>'+safe(o.name)+'</p><b>'+sysLabel(p.x.d)+' · '+safe(p.x.w)+' × '+safe(p.x.h)+'</b><p>'+safe(p.x.color)+' · '+safe(p.x.glass)+'</p><small>Pozícia '+safe(p.pos)+' · Systém '+p.system+'</small></div><div><img src="'+v7QrImage("LANGAS|PKG|"+p.id)+'" alt="QR"><b>'+safe(p.id)+'</b></div></div></div>').join("");
+ $("#v7PrintArea").innerHTML='<div class="v86labels">'+labels+'</div>';
+ window.print();
+}
 function renderShipped(){
  const host=$("#shippedList");if(!host)return;
  const orders=submittedOrders.map((o,i)=>({o,i})).filter(x=>x.o.stage===3);
@@ -267,10 +300,10 @@ function renderShipped(){
 function openShipment(i){
  const o=submittedOrders[i],el=$("#shipDetail-"+i);if(!el)return;
  const rows=shipmentParts(o).map(v=>'<tr><td>'+safe(v[0])+'</td><td>'+(v[1]===null?"—":fmtMm(v[1])+" mm")+'</td><td>'+v[2]+' ks</td></tr>').join("");
- const events=shipmentEvents.filter(e=>e.id===o.id);
+ const events=shipmentEvents.filter(e=>e.id===o.id);const pkgs=packagesFor(o),scanned=pkgs.filter(p=>packageScans.has(p.id)).length;
  el.innerHTML='<h3>Odovzdanie a doručenie</h3><p><b>Objednávka:</b> '+safe(o.id)+' · '+safe(o.time)+' · '+safe(o.name)+'</p><table><tr><th>Položka</th><th>Dĺžka</th><th>Počet</th></tr>'+rows+'</table><h3>História expedície</h3>'+ (events.length?events.map(e=>'<p>✓ '+safe(e.type)+' · '+safe(e.actor)+' · '+safe(e.when)+' · '+safe(e.note)+'</p>').join(""):'<p>Pripravená na expedíciu, čaká na prevzatie.</p>')+
- '<label>Pracovník / preberajúci (test)<input id="shipActor-'+i+'" placeholder="Meno pracovníka"></label><label>Poznámka<input id="shipNote-'+i+'" placeholder="Voliteľná poznámka"></label><div class="actions"><button class="shipHandoff" '+(o.shipStage?'disabled':'')+'>Potvrdiť prevzatie zo skladu</button><button class="shipDelivered" '+(o.shipStage!==1?'disabled':'')+'>Potvrdiť vykládku / doručenie</button><button class="shipPrint">Expedičný / dodací list</button></div><p class="muted">Test: identita je ručne zadaná, nejde o elektronický podpis. Čiastočné doručenie zatiaľ nie je podporované.</p>';
- const event=(type,next)=>{
+ '<h3>QR balenia: '+scanned+' / '+pkgs.length+'</h3><p>'+pkgs.filter(p=>!packageScans.has(p.id)).map(p=>safe(p.kind)+' · '+safe(p.id)).join('<br>')+'</p><div class="actions"><button class="shipLabels">Tlačiť etikety 100 × 50 mm</button><button class="shipScanPackage">Načítať QR balenia</button></div><label>Pracovník / preberajúci (test)<input id="shipActor-'+i+'" placeholder="Meno pracovníka"></label><label>Poznámka<input id="shipNote-'+i+'" placeholder="Voliteľná poznámka"></label><div class="actions"><button class="shipHandoff" '+(o.shipStage?'disabled':'')+'>Potvrdiť prevzatie zo skladu</button><button class="shipDelivered" '+(o.shipStage!==1?'disabled':'')+'>Potvrdiť vykládku / doručenie</button><button class="shipPrint">Expedičný / dodací list</button></div><p class="muted">Test: identita je ručne zadaná, nejde o elektronický podpis. Čiastočné doručenie zatiaľ nie je podporované.</p>';
+ const event=(type,next)=>{if(next===1&&scanned!==pkgs.length)return alert("Pred prevzatím naskenuj všetky balenia.");
   const actor=$("#shipActor-"+i).value.trim(),note=$("#shipNote-"+i).value.trim();
   if(!actor)return alert("Zadaj meno pracovníka.");
   if(!confirm("Potvrdiť: "+type+" · "+actor+"?"))return;
@@ -279,7 +312,7 @@ function openShipment(i){
  };
  el.querySelector(".shipHandoff").onclick=()=>event("Prevzaté zo skladu",1);
  el.querySelector(".shipDelivered").onclick=()=>event("Doručené / vyložené",2);
- el.querySelector(".shipPrint").onclick=()=>printShipment(i);
+ el.querySelector(".shipPrint").onclick=()=>printShipment(i);el.querySelector(".shipLabels").onclick=()=>printPackageLabels(i);el.querySelector(".shipScanPackage").onclick=()=>scanPackageV86(i);
 }
 function printShipment(i){
  const o=submittedOrders[i],rows=shipmentParts(o).map(v=>'<tr><td>'+safe(v[0])+'</td><td>'+(v[1]===null?"—":fmtMm(v[1])+" mm")+'</td><td>'+v[2]+' ks</td></tr>').join("");
