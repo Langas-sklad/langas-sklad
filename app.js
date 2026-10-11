@@ -255,11 +255,11 @@ function v7QrScan(payload){let parts=payload.trim().split("|");if(parts.length!=
 function openV7(i){const o=submittedOrders[i],el=$("#v7detail-"+i);el.classList.remove("hidden");
  el.innerHTML='<h3>Detail zákazky · '+safe(o.id)+'</h3><p><b>Odberateľ:</b> '+safe(o.customer)+' · <b>Zákazka:</b> '+safe(o.name)+' · <b>Dátum:</b> '+safe(o.time)+'</p><p><b>Stav:</b> '+orderStages[o.stage]+'</p>'+
  o.items.map((x,j)=>'<div class="v7position"><b>Pozícia '+safe(x.pos)+' · '+sysLabel(x.d)+' · '+safe(x.w)+' × '+safe(x.h)+' mm · '+safe(x.qty)+' ks</b>'+positionDrawing(x)+'<p>'+safe(x.glass)+' · '+safe(x.color)+' · '+safe(x.side)+' · Teleskop '+safe(x.comp)+' · Obojstranné madlo '+safe(x.fix)+'</p><p>Dokončené: '+(x.done||0)+' / '+x.qty+'</p><button type="button" class="v7productionBtn" data-i="'+i+'" data-j="'+j+'" '+(o.stage<1||!canMakeStandard(x)?'disabled':'')+'>📄 Výrobný list A4 (test 2D–6D)</button><button type="button" class="v7finish" data-i="'+i+'" data-j="'+j+'" '+(o.stage<2||x.done>=x.qty?'disabled':'')+'>✓ Dokončiť 1 ks (simulácia QR)</button></div>').join("")+
- '<div class="actions"><button class="v7confirm" data-i="'+i+'" '+(o.stage!==0?'disabled':'')+'>Potvrdiť objednávku</button><button class="v7start" data-i="'+i+'" '+(o.stage!==1?'disabled':'')+'>Začať výrobu</button><button class="v7ready" data-i="'+i+'" '+(o.stage!==2||o.items.some(x=>(x.done||0)<x.qty)?'disabled':'')+'>Pripravená na expedíciu</button><button class="v7print" data-i="'+i+'">Tlačiť súhrn / PDF</button><button class="v7allProduction" data-i="'+i+'" '+(o.stage<1?"disabled":"")+'>Výrobné listy – všetky pozície</button></div><p class="muted">Výrobný list a objednávka skla: čakajú na presné napojenie Excelovej logiky. E-mail sa zatiaľ neodosiela.</p>';
+ '<div class="actions"><button class="v7confirm" data-i="'+i+'" '+(o.stage!==0?'disabled':'')+'>Potvrdiť objednávku</button><button class="v7start" data-i="'+i+'" '+(o.stage!==1?'disabled':'')+'>Začať výrobu</button><button class="v7ready" data-i="'+i+'" '+(o.stage!==2||o.items.some(x=>(x.done||0)<x.qty)?'disabled':'')+'>Pripravená na expedíciu</button><button class="v7print" data-i="'+i+'">Tlačiť súhrn / PDF</button><button class="v7allProduction" data-i="'+i+'" '+(o.stage<1?"disabled":"")+'>Výrobné listy – všetky pozície</button><button class="v7glassButton" data-i="'+i+'" '+(o.stage<1?"disabled":"")+'>Objednávka skla – všetky pozície</button></div><p class="muted">Objednávka skla je dostupná po potvrdení. E-mail sa zatiaľ neodosiela.</p>';
  el.querySelector(".v7confirm").onclick=()=>{o.stage=1;renderNewOrders();openV7(i)};
  el.querySelector(".v7start").onclick=()=>{o.stage=2;renderNewOrders();openV7(i)};
  el.querySelector(".v7ready").onclick=()=>{o.stage=3;o.notice="Objednávka "+o.id+" je pripravená na vyzdvihnutie / expedíciu.";renderNewOrders();openV7(i);alert("Testovacia notifikácia pre XY: "+o.notice)};
- el.querySelector(".v7print").onclick=()=>printV7(i);el.querySelector(".v7allProduction").onclick=()=>productionAll(i);el.querySelectorAll(".v7productionBtn").forEach(b=>b.onclick=()=>productionStandard(+b.dataset.i,+b.dataset.j));
+ el.querySelector(".v7print").onclick=()=>printV7(i);el.querySelector(".v7allProduction").onclick=()=>productionAll(i);el.querySelector(".v7glassButton").onclick=()=>glassOrderV7(i);el.querySelectorAll(".v7productionBtn").forEach(b=>b.onclick=()=>productionStandard(+b.dataset.i,+b.dataset.j));
  el.querySelectorAll(".v7finish").forEach(b=>b.onclick=()=>{let x=o.items[+b.dataset.j];if(o.stage<2){alert("Najprv klikni Potvrdiť objednávku a potom Začať výrobu. Až následne môže QR potvrdiť dokončenie.");return}if(x.done>=x.qty){alert("Táto pozícia je už dokončená.");return}if(confirm("QR načítaný: "+o.id+" / pozícia "+x.pos+"\\nPotvrdiť dokončenie 1 ks?")){x.done++;renderNewOrders();openV7(i);let d=$("#v7detail-"+i);d.insertAdjacentHTML("afterbegin",'<div class="note">✓ QR simulácia: dokončenie pozície '+safe(x.pos)+' bolo zaznamenané.</div>')}});
 }
 const specs={2:[2,19],3:[3,27.3],4:[4,31.5],5:[5,34],6:[6,35.7],22:[4,19.8,2],33:[6,27.8,3],44:[8,31.9,4],55:[10,34.3,5],66:[12,36.2,6]};
@@ -298,6 +298,23 @@ function productionAll(i){
   }catch(e){return alert("Pozícia "+o.items[j].pos+": "+e.message)}
  }
  $("#v7PrintArea").innerHTML=pages.join("");
+ window.print();
+}
+function glassOrderV7(i){
+ const o=submittedOrders[i];if(!o||o.stage<1)return alert("Najprv potvrď objednávku.");
+ const grouped=new Map();
+ try{
+  o.items.forEach(x=>{
+   const p=calcProduction(x),qty=p.n*Number(x.qty),type=x.glass,key=[type,p.gw.toFixed(4),p.gh.toFixed(4)].join("|");
+   if(!Number.isInteger(qty)||qty<=0)throw Error("Neplatný počet kusov na pozícii "+x.pos);
+   const old=grouped.get(key)||{type,w:p.gw,h:p.gh,qty:0,positions:[]};
+   old.qty+=qty;old.positions.push(String(x.pos));grouped.set(key,old);
+  });
+ }catch(e){return alert("Objednávka skla sa nevytvorila: "+e.message)}
+ const items=[...grouped.values()].sort((a,b)=>a.type.localeCompare(b.type,"sk")||a.w-b.w||a.h-b.h);
+ const rows=items.map((x,j)=>'<tr><td>'+(j+1)+'</td><td>'+safe(x.type)+'</td><td>'+fmtMm(x.w)+'</td><td>'+fmtMm(x.h)+'</td><td>'+x.qty+'</td><td>'+((x.w*x.h*x.qty)/1000000).toLocaleString("sk-SK",{minimumFractionDigits:3,maximumFractionDigits:4})+'</td><td>'+safe(x.positions.join(", "))+'</td></tr>').join("");
+ const sumQty=items.reduce((s,x)=>s+x.qty,0),sumArea=items.reduce((s,x)=>s+x.w*x.h*x.qty/1000000,0);
+ $("#v7PrintArea").innerHTML='<div class="v7glassOrder"><h1>LANGAS · OBJEDNÁVKA SKLA</h1><p><b>'+safe(o.id)+'</b> · '+safe(o.customer)+' · '+safe(o.name)+'</p><p>Dátum: '+safe(o.time)+' · Počet rozmerových položiek: '+items.length+'</p><table><thead><tr><th>Č.</th><th>Sklo</th><th>Šírka mm</th><th>Výška mm</th><th>Ks</th><th>m²</th><th>Pozície</th></tr></thead><tbody>'+rows+'</tbody></table><h3>Spolu: '+sumQty+' ks · '+sumArea.toLocaleString("sk-SK",{minimumFractionDigits:3,maximumFractionDigits:4})+' m²</h3><p>Rozmery skiel a množstvá sú vypočítané z potvrdenej testovacej objednávky. Pred odoslaním dodávateľovi skontrolovať.</p></div>';
  window.print();
 }
 function printV7(i){let o=submittedOrders[i],body=$("#v7PrintArea");body.innerHTML='<h1>LANGAS · Súhrn objednávky</h1><h2>'+safe(o.id)+'</h2><p>Odberateľ: '+safe(o.customer)+' · Zákazka: '+safe(o.name)+' · Dátum: '+safe(o.time)+'</p>'+o.items.map(x=>'<div class="v7position"><h3>Pozícia '+safe(x.pos)+' · '+sysLabel(x.d)+' · '+safe(x.qty)+' ks</h3>'+positionDrawing(x)+'<img class="v7qr" src="'+v7QrImage(v7QrPayload(o,x))+'" alt="QR pozície"><p>'+safe(x.w)+' × '+safe(x.h)+' mm · '+safe(x.glass)+' · '+safe(x.color)+' · '+safe(x.side)+'</p></div>').join('')+'<p>Pracovný súhrn – NIE výrobný list.</p>';window.print()}
