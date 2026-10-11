@@ -287,7 +287,13 @@ function scanPackageV86(i){
 }
 function printPackageLabels(i){
  const o=submittedOrders[i],pkgs=packagesFor(o);
- const labels=pkgs.map(p=>'<div class="v86label"><header><b>LANGAS</b><span>'+safe(p.kind)+'</span></header><div class="v86columns"><div><b>'+safe(o.id)+'</b><p>'+safe(o.name)+'</p><b>'+sysLabel(p.x.d)+' · '+safe(p.x.w)+' × '+safe(p.x.h)+'</b><p>'+safe(p.x.color)+' · '+safe(p.x.glass)+'</p><small>Pozícia '+safe(p.pos)+' · Systém '+p.system+'</small></div><div><img src="'+v7QrImage("LANGAS|PKG|"+p.id)+'" alt="QR"><b>'+safe(p.id)+'</b></div></div></div>').join("");
+ const labels=pkgs.map(p=>{
+  const isWing=p.kind.startsWith("Krídlo");
+  const wingNumber=isWing?p.kind.match(/\\d+/)?.[0]:"";
+  const shortCode="P"+String(p.pos).padStart(2,"0")+(isWing?"-K"+wingNumber:"-PROF");
+  const title=isWing?"KRÍDLO "+wingNumber+" / "+calcProduction(p.x).n:"PROFILY SYSTÉMU";
+  return '<div class="v86label"><div class="v86top"><strong>LANGAS</strong><span>'+safe(title)+'</span></div><div class="v86body"><div class="v86left"><div class="v86order">'+safe(o.id)+'</div><div>'+safe(o.name)+'</div><div class="v86system">'+sysLabel(p.x.d)+' · '+safe(p.x.w)+' × '+safe(p.x.h)+'</div><div>'+safe(p.x.color)+' · '+safe(p.x.glass)+'</div></div><div class="v86middle"><strong>'+safe(shortCode)+'</strong><span>'+(isWing?"KRÍDLO":"PROFILY")+'</span></div><div class="v86qr"><img src="'+v7QrImage("LANGAS|PKG|"+p.id)+'" alt="QR '+safe(shortCode)+'"></div></div></div>';
+ }).join("");
  $("#v7PrintArea").innerHTML='<div class="v86labels">'+labels+'</div>';
  window.print();
 }
