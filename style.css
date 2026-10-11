@@ -31,3 +31,18 @@
  .v86columns img{width:24mm;height:24mm;display:block}
  .v86columns div:last-child b{font-size:6pt;overflow-wrap:anywhere}
 }
+
+@media print{
+ .v86label{border:0.35mm solid #333;border-radius:1.5mm;padding:2.3mm 2.4mm;display:flex;flex-direction:column}
+ .v86top{display:flex;justify-content:space-between;align-items:center;height:15mm;border-bottom:0.2mm solid #333;font-size:10pt}
+ .v86top strong{font-size:14pt;font-weight:700}
+ .v86top span{font-size:9pt}
+ .v86body{display:grid;grid-template-columns:50% 33% 17%;flex:1;align-items:center;gap:0}
+ .v86left{font-size:8.5pt;line-height:1.55}
+ .v86order{font-size:9.5pt}
+ .v86system{font-weight:700}
+ .v86middle{display:flex;flex-direction:column;gap:2mm;font-size:9pt}
+ .v86middle strong{font-size:10pt}
+ .v86middle span{font-size:8pt}
+ .v86qr img{width:14mm;height:14mm;display:block;object-fit:contain}
+}
