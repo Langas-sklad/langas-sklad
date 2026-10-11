@@ -1,5 +1,5 @@
 const D=window.DATA;let P=structuredClone(D.stock),C=structuredClone(D.cuts),H=[],R=[],stockSystem="all",cutSystem="all";const $=s=>document.querySelector(s),findP=c=>P.find(x=>x.code===c);C.forEach(x=>{let p=findP(x.code);if(p){x.system=x.system||p.system||"Nezaradené";x.systems=x.systems||p.systems||[x.system];x.color=x.color||p.color}});
-function show(id){document.querySelectorAll("main>section").forEach(x=>x.classList.add("hidden"));$("#"+id).classList.remove("hidden");document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.p===id));scrollTo(0,0)}document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>show(b.dataset.p));$("#printBtn").onclick=()=>print();
+function show(id){if(id==="shipped")renderShipped();document.querySelectorAll("main>section").forEach(x=>x.classList.add("hidden"));$("#"+id).classList.remove("hidden");document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.p===id));scrollTo(0,0)}document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>show(b.dataset.p));$("#printBtn").onclick=()=>print();
 function reservedFor(code){return R.filter(r=>r.code===code&&r.kind!=="cut").reduce((s,r)=>s+r.qty,0)}
 function reservedCutFor(id){return R.filter(r=>r.kind==="cut"&&r.cutId===id).reduce((s,r)=>s+r.qty,0)}
 function render(){$("#bars").textContent=P.reduce((a,x)=>a+x.qty,0);$("#cutCount").textContent=C.filter(x=>x.status==="DOSTUPNÝ").reduce((a,x)=>a+x.qty,0);$("#moves").textContent=H.length;$("#stockT").innerHTML='<table><tr><th>Kód</th><th>Názov</th><th>Farba</th><th>Dĺžka</th><th>Fyzicky</th><th>Rezervované</th><th>Voľné</th></tr>'+P.filter(x=>stockSystem==="all"||(x.systems||[x.system]).includes(stockSystem)).map(x=>{let rv=reservedFor(x.code),free=Math.max(0,x.qty-rv);return `<tr><td><b>${x.code}</b></td><td>${x.name}</td><td>${x.color}</td><td>${x.length}</td><td>${x.qty}</td><td><b>${rv}</b></td><td class="${free<=0&&rv>0?"bad":"ok"}"><b>${free}</b></td></tr>`}).join('')+'</table>';$("#cutsT").innerHTML='<table><tr><th>ID</th><th>Profil</th><th>Názov profilu</th><th>Dĺžka</th><th>Fyzicky</th><th>Rezervované</th><th>Voľné</th><th>Stav</th></tr>'+C.filter(x=>cutSystem==="all"||(x.systems||[x.system]).includes(cutSystem)).map(x=>{let rv=reservedCutFor(x.id),free=Math.max(0,x.qty-rv),p=findP(x.code),nm=x.name||(p?p.name:"—"),cls=free>0?"stock-ok":"stock-bad";return `<tr><td>${x.id}</td><td>${x.code}</td><td>${nm}</td><td>${x.length}</td><td>${x.qty}</td><td><b>${rv}</b></td><td class="${cls}"><b>${free}</b></td><td><span class="${cls}">${free>0?"DOSTUPNÝ":"REZERVOVANÝ"}</span></td></tr>`}).join('')+'</table>';$("#histT").innerHTML=H.length?'<table><tr><th>Čas</th><th>Typ</th><th>Profil</th><th>Farba</th><th>Ks</th><th>Dĺžka</th><th>Zákazka</th><th>Akcia</th></tr>'+H.map((x,i)=>`<tr><td>${x.time}</td><td>${x.type}</td><td>${x.code}</td><td>${x.color||"—"}</td><td>${x.qty}</td><td>${x.length}</td><td>${x.job}</td><td>${x.cancelled?'<span class="muted">ZRUŠENÉ</span>':'<button class="gray cancelMove" data-i="'+i+'">Zrušiť</button>'}</td></tr>`).join('')+'</table>':'Bez pohybov.';setTimeout(()=>document.querySelectorAll(".cancelMove").forEach(b=>b.onclick=()=>cancelMovement(+b.dataset.i)),0);$("#jobT").innerHTML='<table><tr><th>Profil</th><th>Názov</th><th>Dĺžka</th><th>Ks</th></tr>'+D.famus.map(x=>`<tr><td>${x.code}</td><td>${x.name}</td><td>${x.length}</td><td>${x.qty}</td></tr>`).join('')+'</table>'}
@@ -244,6 +244,47 @@ const totalUnits=o=>o.items.reduce((a,x)=>a+(Number(x.qty)||0),0);
 const orderStages=["Odoslaná","Potvrdená","Vo výrobe","Pripravená"];
 function positionDrawing(x){let d=Number(x.d),n=d>10?Number(String(d)[0])*2:d,half=d>10?n/2:0,arrow=x.side==="Pravá"?"←":x.side==="Od stredu"?"↔":"→";
 return '<div class="v7drawing">'+Array.from({length:n},(_,j)=>'<div class="v7pane '+(half&&j===half?'v7split':'')+'"><small>'+ (j+1) +'</small><b>'+arrow+'</b></div>').join("")+'</div>'}
+const shipmentEvents=[];
+function shipStatus(o){return o.shipStage===2?"Doručená":o.shipStage===1?"Na ceste":"Pripravená"}
+function shipmentParts(o){
+ const lines=[];
+ o.items.forEach(x=>{
+  const p=calcProduction(x),q=Number(x.qty);
+  lines.push(["Pozícia "+x.pos+" · horná "+p.rail+"-koľajová",Number(x.w),q]);
+  lines.push(["Pozícia "+x.pos+" · spodná "+p.rail+"-koľajová",Number(x.w),q]);
+  lines.push(["Pozícia "+x.pos+" · doraz",p.eff-17,2*q]);
+  if(p.dual)lines.push(["Pozícia "+x.pos+" · stredový doraz",p.vert,q]);
+  lines.push(["Pozícia "+x.pos+" · hotové krídlo",null,p.n*q]);
+ });
+ return lines;
+}
+function renderShipped(){
+ const host=$("#shippedList");if(!host)return;
+ const orders=submittedOrders.map((o,i)=>({o,i})).filter(x=>x.o.stage===3);
+ host.innerHTML=orders.length?orders.map(({o,i})=>'<article class="v7order"><div class="v7head"><h3>'+safe(o.id)+' · '+safe(o.customer)+'</h3><strong>'+shipStatus(o)+'</strong></div><p>'+safe(o.name)+' · '+totalUnits(o)+' systémov</p><button class="shipOpen" data-i="'+i+'">Detail expedície</button><div id="shipDetail-'+i+'"></div></article>').join(""):'<p class="muted">Zatiaľ nie sú žiadne zákazky pripravené na expedíciu. Dokonči výrobu a potvrď pripravenosť.</p>';
+ host.querySelectorAll(".shipOpen").forEach(b=>b.onclick=()=>openShipment(+b.dataset.i));
+}
+function openShipment(i){
+ const o=submittedOrders[i],el=$("#shipDetail-"+i);if(!el)return;
+ const rows=shipmentParts(o).map(v=>'<tr><td>'+safe(v[0])+'</td><td>'+(v[1]===null?"—":fmtMm(v[1])+" mm")+'</td><td>'+v[2]+' ks</td></tr>').join("");
+ const events=shipmentEvents.filter(e=>e.id===o.id);
+ el.innerHTML='<h3>Odovzdanie a doručenie</h3><p><b>Objednávka:</b> '+safe(o.id)+' · '+safe(o.time)+' · '+safe(o.name)+'</p><table><tr><th>Položka</th><th>Dĺžka</th><th>Počet</th></tr>'+rows+'</table><h3>História expedície</h3>'+ (events.length?events.map(e=>'<p>✓ '+safe(e.type)+' · '+safe(e.actor)+' · '+safe(e.when)+' · '+safe(e.note)+'</p>').join(""):'<p>Pripravená na expedíciu, čaká na prevzatie.</p>')+
+ '<label>Pracovník / preberajúci (test)<input id="shipActor-'+i+'" placeholder="Meno pracovníka"></label><label>Poznámka<input id="shipNote-'+i+'" placeholder="Voliteľná poznámka"></label><div class="actions"><button class="shipHandoff" '+(o.shipStage?'disabled':'')+'>Potvrdiť prevzatie zo skladu</button><button class="shipDelivered" '+(o.shipStage!==1?'disabled':'')+'>Potvrdiť vykládku / doručenie</button><button class="shipPrint">Expedičný / dodací list</button></div><p class="muted">Test: identita je ručne zadaná, nejde o elektronický podpis. Čiastočné doručenie zatiaľ nie je podporované.</p>';
+ const event=(type,next)=>{
+  const actor=$("#shipActor-"+i).value.trim(),note=$("#shipNote-"+i).value.trim();
+  if(!actor)return alert("Zadaj meno pracovníka.");
+  if(!confirm("Potvrdiť: "+type+" · "+actor+"?"))return;
+  shipmentEvents.push({id:o.id,type,actor,note,when:new Date().toLocaleString("sk-SK")});
+  o.shipStage=next;renderShipped();openShipment(i);
+ };
+ el.querySelector(".shipHandoff").onclick=()=>event("Prevzaté zo skladu",1);
+ el.querySelector(".shipDelivered").onclick=()=>event("Doručené / vyložené",2);
+ el.querySelector(".shipPrint").onclick=()=>printShipment(i);
+}
+function printShipment(i){
+ const o=submittedOrders[i],rows=shipmentParts(o).map(v=>'<tr><td>'+safe(v[0])+'</td><td>'+(v[1]===null?"—":fmtMm(v[1])+" mm")+'</td><td>'+v[2]+' ks</td></tr>').join("");
+ $("#v7PrintArea").innerHTML='<div class="v7production"><h1>LANGAS · '+(o.customer==="XY"?"DODACÍ LIST / EXPEDIČNÝ LIST (TEST)":"EXPEDIČNÝ LIST")+'</h1><p>'+safe(o.id)+' · '+safe(o.name)+' · '+safe(o.customer)+'</p><p>Dátum objednávky: '+safe(o.time)+'</p><table><tr><th>Položka</th><th>Dĺžka</th><th>Počet</th></tr>'+rows+'</table><p>Odovzdal: __________________ Prevzal: __________________</p><p>Testovací dokument bez cien a príslušenstva.</p></div>';window.print();
+}
 function renderNewOrders(){
  $("#newOrderBadge").textContent=submittedOrders.filter(o=>o.stage===0).length||"";
  $("#newOrdersList").innerHTML=submittedOrders.length?submittedOrders.map((o,i)=>'<article class="v7order"><div class="v7head"><div><h3>'+safe(o.id)+' · '+safe(o.customer)+'</h3><p>'+safe(o.name)+' · '+safe(o.time)+'</p></div><strong>'+orderStages[o.stage]+'</strong></div><p>'+o.items.length+' pozícií · '+totalUnits(o)+' systémov · Hotové '+o.items.reduce((a,x)=>a+(x.done||0),0)+' / '+totalUnits(o)+'</p><button type="button" class="v7open" data-i="'+i+'">Otvoriť objednávku</button><div class="v7details hidden" id="v7detail-'+i+'"></div></article>').join(""):'<p class="muted">Žiadne nové objednávky v tomto prehliadači.</p>';
@@ -258,7 +299,7 @@ function openV7(i){const o=submittedOrders[i],el=$("#v7detail-"+i);el.classList.
  '<div class="actions"><button class="v7confirm" data-i="'+i+'" '+(o.stage!==0?'disabled':'')+'>Potvrdiť objednávku</button><button class="v7start" data-i="'+i+'" '+(o.stage!==1?'disabled':'')+'>Začať výrobu</button><button class="v7ready" data-i="'+i+'" '+(o.stage!==2||o.items.some(x=>(x.done||0)<x.qty)?'disabled':'')+'>Pripravená na expedíciu</button><button class="v7print" data-i="'+i+'">Tlačiť súhrn / PDF</button><button class="v7allProduction" data-i="'+i+'" '+(o.stage<1?"disabled":"")+'>Výrobné listy – všetky pozície</button><button class="v7glassButton" data-i="'+i+'" '+(o.stage<1?"disabled":"")+'>Objednávka skla – všetky pozície</button><button class="v8cutPlan" data-i="'+i+'" '+(o.stage<1?"disabled":"")+'>Rezací plán zákazky (test)</button></div><p class="muted">Objednávka skla je dostupná po potvrdení. E-mail sa zatiaľ neodosiela.</p>';
  el.querySelector(".v7confirm").onclick=()=>{o.stage=1;renderNewOrders();openV7(i)};
  el.querySelector(".v7start").onclick=()=>{o.stage=2;renderNewOrders();openV7(i)};
- el.querySelector(".v7ready").onclick=()=>{o.stage=3;o.notice="Objednávka "+o.id+" je pripravená na vyzdvihnutie / expedíciu.";renderNewOrders();openV7(i);alert("Testovacia notifikácia pre XY: "+o.notice)};
+ el.querySelector(".v7ready").onclick=()=>{o.stage=3;o.shipStage=0;o.notice="Objednávka "+o.id+" je pripravená na vyzdvihnutie / expedíciu.";renderNewOrders();openV7(i);alert("Testovacia notifikácia pre XY: "+o.notice)};
  el.querySelector(".v7print").onclick=()=>printV7(i);el.querySelector(".v7allProduction").onclick=()=>productionAll(i);el.querySelector(".v7glassButton").onclick=()=>glassOrderV7(i);el.querySelector(".v8cutPlan").onclick=()=>cutPlanV8(i);el.querySelectorAll(".v7productionBtn").forEach(b=>b.onclick=()=>productionStandard(+b.dataset.i,+b.dataset.j));
  el.querySelectorAll(".v7finish").forEach(b=>b.onclick=()=>{let x=o.items[+b.dataset.j];if(o.stage<2){alert("Najprv klikni Potvrdiť objednávku a potom Začať výrobu. Až následne môže QR potvrdiť dokončenie.");return}if(x.done>=x.qty){alert("Táto pozícia je už dokončená.");return}if(confirm("QR načítaný: "+o.id+" / pozícia "+x.pos+"\\nPotvrdiť dokončenie 1 ks?")){x.done++;renderNewOrders();openV7(i);let d=$("#v7detail-"+i);d.insertAdjacentHTML("afterbegin",'<div class="note">✓ QR simulácia: dokončenie pozície '+safe(x.pos)+' bolo zaznamenané.</div>')}});
 }
