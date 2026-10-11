@@ -326,8 +326,12 @@ function cutPlanV8(i){
 
  const names=[...new Set([...grouped.values()].map(v=>v.name))];
  const host=$("#v8CutSetup");
+ if(!host){alert("Formulár rezacieho plánu nie je dostupný.");return}
+ const detail=$("#v7detail-"+i);
+ if(detail)detail.prepend(host);
  host.classList.remove("hidden");
  host.innerHTML='<h3>Rezací plán – dĺžky vstupných tyčí</h3><p>Pre každý profil nastav skladovú dĺžku v mm. Hodnoty sú zatiaľ testovacie, nie zo skladu.</p><div class="v8CutFields">'+names.map((name,j)=>'<label>'+safe(name)+'<input type="number" min="1000" max="20000" step="1" class="v8stockLength" data-j="'+j+'" value="6500"></label>').join("")+'</div><label>Šírka pílového rezu (mm)<input id="v8Kerf" type="number" min="0" max="20" step="0.1" value="5"></label><div class="actions"><button id="v8Calculate" class="green">Vypočítať rezací plán</button><button id="v8Cancel" class="gray">Zrušiť</button></div>';
+ host.scrollIntoView({behavior:"smooth",block:"start"});
  $("#v8Cancel").onclick=()=>host.classList.add("hidden");
  $("#v8Calculate").onclick=()=>{
  const kerf=Number($("#v8Kerf").value);
