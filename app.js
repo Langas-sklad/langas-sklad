@@ -302,11 +302,6 @@ function productionAll(i){
 }
 function cutPlanV8(i){
  const o=submittedOrders[i];if(!o||o.stage<1)return alert("Najprv potvrď objednávku.");
- const input=prompt("Testovacia dĺžka vstupnej tyče v mm (zmeň podľa profilu):","6500");
- if(input===null)return;
- const stock=Number(input.replace(",","."));if(!Number.isFinite(stock)||stock<1000||stock>20000)return alert("Neplatná dĺžka tyče.");
- const kInput=prompt("Šírka pílového rezu v mm:","5");if(kInput===null)return;
- const kerf=Number(kInput.replace(",","."));if(!Number.isFinite(kerf)||kerf<0||kerf>20)return alert("Neplatná šírka rezu.");
  const grouped=new Map();
  function add(name,len,qty,pos){
   if(!qty)return;
@@ -328,16 +323,30 @@ function cutPlanV8(i){
    if(x.comp==="Áno")add("Teleskop 1 a 2 – sada",Number(x.w),q,x.pos);
   }
  }catch(e){return alert(e.message)}
+
+ const names=[...new Set([...grouped.values()].map(v=>v.name))];
+ const host=$("#v8CutSetup");
+ host.classList.remove("hidden");
+ host.innerHTML='<h3>Rezací plán – dĺžky vstupných tyčí</h3><p>Pre každý profil nastav skladovú dĺžku v mm. Hodnoty sú zatiaľ testovacie, nie zo skladu.</p><div class="v8CutFields">'+names.map((name,j)=>'<label>'+safe(name)+'<input type="number" min="1000" max="20000" step="1" class="v8stockLength" data-j="'+j+'" value="6500"></label>').join("")+'</div><label>Šírka pílového rezu (mm)<input id="v8Kerf" type="number" min="0" max="20" step="0.1" value="5"></label><div class="actions"><button id="v8Calculate" class="green">Vypočítať rezací plán</button><button id="v8Cancel" class="gray">Zrušiť</button></div>';
+ $("#v8Cancel").onclick=()=>host.classList.add("hidden");
+ $("#v8Calculate").onclick=()=>{
+ const kerf=Number($("#v8Kerf").value);
+ if(!Number.isFinite(kerf)||kerf<0||kerf>20)return alert("Neplatná šírka rezu.");
+ const lengths=new Map();
+ for(const inp of host.querySelectorAll(".v8stockLength")){
+  const n=Number(inp.value);if(!Number.isFinite(n)||n<1000||n>20000)return alert("Skontroluj dĺžku: "+names[+inp.dataset.j]);
+  lengths.set(names[+inp.dataset.j],n);
+ }
  const byProfile=new Map();
  for(const v of grouped.values()){
   const arr=byProfile.get(v.name)||[];
   for(let n=0;n<v.qty;n++)arr.push(v.len);
   byProfile.set(v.name,arr);
  }
- let html='<div class="v7production"><h1>LANGAS · REZACÍ PLÁN ZÁKAZKY</h1><p>'+safe(o.id)+' · '+safe(o.customer)+' · '+safe(o.name)+'</p><p><b>TEST:</b> dĺžka vstupnej tyče '+fmtMm(stock)+' mm, rez '+fmtMm(kerf)+' mm. Nie je to kontrola skladu ani rezervácia.</p>';
+ let html='<div class="v7production"><h1>LANGAS · REZACÍ PLÁN ZÁKAZKY</h1><p>'+safe(o.id)+' · '+safe(o.customer)+' · '+safe(o.name)+'</p><p><b>TEST:</b> samostatné dĺžky vstupných tyčí podľa profilov, rez '+fmtMm(kerf)+' mm. Nie je to kontrola skladu ani rezervácia.</p>';
  let summary=[];
  for(const [name,cuts] of byProfile){
-  cuts.sort((a,b)=>b-a);
+  const stock=lengths.get(name);cuts.sort((a,b)=>b-a);
   const bins=[],oversize=[];
   for(const len of cuts){
    if(len+kerf>stock+1e-7){oversize.push(len);continue}
@@ -346,14 +355,18 @@ function cutPlanV8(i){
    bin.cuts.push(len);bin.used+=len+kerf;
   }
   const waste=bins.reduce((a,b)=>a+Math.max(0,stock-b.used),0);
-  summary.push([name,cuts.length,bins.length,waste,oversize.length]);
-  html+='<h2>'+safe(name)+'</h2><p>Rezov: '+cuts.length+' · Vstupné tyče: '+bins.length+' · Zvyšok: '+fmtMm(waste)+' mm</p>';
+  summary.push([name,stock,cuts.length,bins.length,waste,oversize.length]);
+  html+='<h2>'+safe(name)+'</h2><p>Vstupná tyč: '+fmtMm(stock)+' mm · Rezov: '+cuts.length+' · Vstupné tyče: '+bins.length+' · Zvyšok: '+fmtMm(waste)+' mm</p>';
   if(oversize.length)html+='<p><b>POZOR: '+oversize.length+' rezov je dlhších ako vstupná tyč!</b></p>';
   html+='<table><tr><th>Tyč</th><th>Rozrezanie [mm]</th><th>Zvyšok [mm]</th></tr>'+bins.map((b,j)=>'<tr><td>'+(j+1)+'</td><td>'+b.cuts.map(fmtMm).join(" + ")+'</td><td>'+fmtMm(Math.max(0,stock-b.used))+'</td></tr>').join("")+'</table>';
  }
- html+='<h2>Rekapitulácia</h2><table><tr><th>Profil</th><th>Rezy</th><th>Tyče</th><th>Zvyšok mm</th><th>Nad dĺžku</th></tr>'+summary.map(v=>'<tr><td>'+safe(v[0])+'</td><td>'+v[1]+'</td><td>'+v[2]+'</td><td>'+fmtMm(v[3])+'</td><td>'+v[4]+'</td></tr>').join("")+'</table><p>Optimalizácia: First-Fit Decreasing, 1 rez na každý diel. Vstupné dĺžky profilov sú skúšobné; odrezky a skladové rezervácie sa zatiaľ nezohľadňujú.</p></div>';
+ html+='<h2>Rekapitulácia</h2><table><tr><th>Profil</th><th>Tyč mm</th><th>Rezy</th><th>Tyče</th><th>Zvyšok mm</th><th>Nad dĺžku</th></tr>'+summary.map(v=>'<tr><td>'+safe(v[0])+'</td><td>'+v[1]+'</td><td>'+v[2]+'</td><td>'+fmtMm(v[3])+'</td><td>'+v[4]+'</td></tr>').join("")+'</table><p>Optimalizácia: First-Fit Decreasing, 1 rez na každý diel. Vstupné dĺžky profilov sú skúšobné; odrezky a skladové rezervácie sa zatiaľ nezohľadňujú.</p></div>';
  $("#v7PrintArea").innerHTML=html;
  window.print();
+}
+
+ host.classList.add("hidden");
+ };
 }
 function glassOrderV7(i){
  const o=submittedOrders[i];if(!o||o.stage<1)return alert("Najprv potvrď objednávku.");
