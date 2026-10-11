@@ -255,11 +255,11 @@ function v7QrScan(payload){let parts=payload.trim().split("|");if(parts.length!=
 function openV7(i){const o=submittedOrders[i],el=$("#v7detail-"+i);el.classList.remove("hidden");
  el.innerHTML='<h3>Detail zákazky · '+safe(o.id)+'</h3><p><b>Odberateľ:</b> '+safe(o.customer)+' · <b>Zákazka:</b> '+safe(o.name)+' · <b>Dátum:</b> '+safe(o.time)+'</p><p><b>Stav:</b> '+orderStages[o.stage]+'</p>'+
  o.items.map((x,j)=>'<div class="v7position"><b>Pozícia '+safe(x.pos)+' · '+sysLabel(x.d)+' · '+safe(x.w)+' × '+safe(x.h)+' mm · '+safe(x.qty)+' ks</b>'+positionDrawing(x)+'<p>'+safe(x.glass)+' · '+safe(x.color)+' · '+safe(x.side)+' · Teleskop '+safe(x.comp)+' · Obojstranné madlo '+safe(x.fix)+'</p><p>Dokončené: '+(x.done||0)+' / '+x.qty+'</p><button type="button" class="v7productionBtn" data-i="'+i+'" data-j="'+j+'" '+(o.stage<1||!canMakeStandard(x)?'disabled':'')+'>📄 Výrobný list A4 (test 2D–6D)</button><button type="button" class="v7finish" data-i="'+i+'" data-j="'+j+'" '+(o.stage<2||x.done>=x.qty?'disabled':'')+'>✓ Dokončiť 1 ks (simulácia QR)</button></div>').join("")+
- '<div class="actions"><button class="v7confirm" data-i="'+i+'" '+(o.stage!==0?'disabled':'')+'>Potvrdiť objednávku</button><button class="v7start" data-i="'+i+'" '+(o.stage!==1?'disabled':'')+'>Začať výrobu</button><button class="v7ready" data-i="'+i+'" '+(o.stage!==2||o.items.some(x=>(x.done||0)<x.qty)?'disabled':'')+'>Pripravená na expedíciu</button><button class="v7print" data-i="'+i+'">Tlačiť súhrn / PDF</button><button class="v7allProduction" data-i="'+i+'" '+(o.stage<1?"disabled":"")+'>Výrobné listy – všetky pozície</button><button class="v7glassButton" data-i="'+i+'" '+(o.stage<1?"disabled":"")+'>Objednávka skla – všetky pozície</button></div><p class="muted">Objednávka skla je dostupná po potvrdení. E-mail sa zatiaľ neodosiela.</p>';
+ '<div class="actions"><button class="v7confirm" data-i="'+i+'" '+(o.stage!==0?'disabled':'')+'>Potvrdiť objednávku</button><button class="v7start" data-i="'+i+'" '+(o.stage!==1?'disabled':'')+'>Začať výrobu</button><button class="v7ready" data-i="'+i+'" '+(o.stage!==2||o.items.some(x=>(x.done||0)<x.qty)?'disabled':'')+'>Pripravená na expedíciu</button><button class="v7print" data-i="'+i+'">Tlačiť súhrn / PDF</button><button class="v7allProduction" data-i="'+i+'" '+(o.stage<1?"disabled":"")+'>Výrobné listy – všetky pozície</button><button class="v7glassButton" data-i="'+i+'" '+(o.stage<1?"disabled":"")+'>Objednávka skla – všetky pozície</button><button class="v8cutPlan" data-i="'+i+'" '+(o.stage<1?"disabled":"")+'>Rezací plán zákazky (test)</button></div><p class="muted">Objednávka skla je dostupná po potvrdení. E-mail sa zatiaľ neodosiela.</p>';
  el.querySelector(".v7confirm").onclick=()=>{o.stage=1;renderNewOrders();openV7(i)};
  el.querySelector(".v7start").onclick=()=>{o.stage=2;renderNewOrders();openV7(i)};
  el.querySelector(".v7ready").onclick=()=>{o.stage=3;o.notice="Objednávka "+o.id+" je pripravená na vyzdvihnutie / expedíciu.";renderNewOrders();openV7(i);alert("Testovacia notifikácia pre XY: "+o.notice)};
- el.querySelector(".v7print").onclick=()=>printV7(i);el.querySelector(".v7allProduction").onclick=()=>productionAll(i);el.querySelector(".v7glassButton").onclick=()=>glassOrderV7(i);el.querySelectorAll(".v7productionBtn").forEach(b=>b.onclick=()=>productionStandard(+b.dataset.i,+b.dataset.j));
+ el.querySelector(".v7print").onclick=()=>printV7(i);el.querySelector(".v7allProduction").onclick=()=>productionAll(i);el.querySelector(".v7glassButton").onclick=()=>glassOrderV7(i);el.querySelector(".v8cutPlan").onclick=()=>cutPlanV8(i);el.querySelectorAll(".v7productionBtn").forEach(b=>b.onclick=()=>productionStandard(+b.dataset.i,+b.dataset.j));
  el.querySelectorAll(".v7finish").forEach(b=>b.onclick=()=>{let x=o.items[+b.dataset.j];if(o.stage<2){alert("Najprv klikni Potvrdiť objednávku a potom Začať výrobu. Až následne môže QR potvrdiť dokončenie.");return}if(x.done>=x.qty){alert("Táto pozícia je už dokončená.");return}if(confirm("QR načítaný: "+o.id+" / pozícia "+x.pos+"\\nPotvrdiť dokončenie 1 ks?")){x.done++;renderNewOrders();openV7(i);let d=$("#v7detail-"+i);d.insertAdjacentHTML("afterbegin",'<div class="note">✓ QR simulácia: dokončenie pozície '+safe(x.pos)+' bolo zaznamenané.</div>')}});
 }
 const specs={2:[2,19],3:[3,27.3],4:[4,31.5],5:[5,34],6:[6,35.7],22:[4,19.8,2],33:[6,27.8,3],44:[8,31.9,4],55:[10,34.3,5],66:[12,36.2,6]};
@@ -298,6 +298,61 @@ function productionAll(i){
   }catch(e){return alert("Pozícia "+o.items[j].pos+": "+e.message)}
  }
  $("#v7PrintArea").innerHTML=pages.join("");
+ window.print();
+}
+function cutPlanV8(i){
+ const o=submittedOrders[i];if(!o||o.stage<1)return alert("Najprv potvrď objednávku.");
+ const input=prompt("Testovacia dĺžka vstupnej tyče v mm (zmeň podľa profilu):","6500");
+ if(input===null)return;
+ const stock=Number(input.replace(",","."));if(!Number.isFinite(stock)||stock<1000||stock>20000)return alert("Neplatná dĺžka tyče.");
+ const kInput=prompt("Šírka pílového rezu v mm:","5");if(kInput===null)return;
+ const kerf=Number(kInput.replace(",","."));if(!Number.isFinite(kerf)||kerf<0||kerf>20)return alert("Neplatná šírka rezu.");
+ const grouped=new Map();
+ function add(name,len,qty,pos){
+  if(!qty)return;
+  if(!Number.isFinite(len)||len<=0||!Number.isInteger(qty)||qty<0||qty>10000)throw Error("Neplatná položka: "+name);
+  const key=name+"|"+len.toFixed(4),v=grouped.get(key)||{name,len,qty:0,positions:new Set()};
+  v.qty+=qty;v.positions.add(String(pos));grouped.set(key,v);
+ }
+ try{
+  for(const x of o.items){
+   const p=calcProduction(x),q=Number(x.qty);
+   if(!Number.isInteger(q)||q<1||q>1000)throw Error("Neplatný počet systémov: pozícia "+x.pos);
+   add(p.rail+"-koľajový profil",p.split?Number(x.w)/2:Number(x.w),(p.split?4:2)*q,x.pos);
+   add("Dorazový profil",p.eff-17,2*q,x.pos);
+   add("Vertikálny profil",p.vert,p.normal*q,x.pos);
+   add("Vertikálny profil s madlom",p.vert,p.handle*q,x.pos);
+   add("Vertikálny profil s madlom obojstranne",p.vert,p.both*q,x.pos);
+   add("Horizontálny profil",p.hor,p.n*2*q,x.pos);
+   add("Stredový dorazový profil",p.vert,(p.dual?1:0)*q,x.pos);
+   if(x.comp==="Áno")add("Teleskop 1 a 2 – sada",Number(x.w),q,x.pos);
+  }
+ }catch(e){return alert(e.message)}
+ const byProfile=new Map();
+ for(const v of grouped.values()){
+  const arr=byProfile.get(v.name)||[];
+  for(let n=0;n<v.qty;n++)arr.push(v.len);
+  byProfile.set(v.name,arr);
+ }
+ let html='<div class="v7production"><h1>LANGAS · REZACÍ PLÁN ZÁKAZKY</h1><p>'+safe(o.id)+' · '+safe(o.customer)+' · '+safe(o.name)+'</p><p><b>TEST:</b> dĺžka vstupnej tyče '+fmtMm(stock)+' mm, rez '+fmtMm(kerf)+' mm. Nie je to kontrola skladu ani rezervácia.</p>';
+ let summary=[];
+ for(const [name,cuts] of byProfile){
+  cuts.sort((a,b)=>b-a);
+  const bins=[],oversize=[];
+  for(const len of cuts){
+   if(len+kerf>stock+1e-7){oversize.push(len);continue}
+   let bin=bins.find(b=>b.used+len+kerf<=stock+1e-7);
+   if(!bin){bin={used:0,cuts:[]};bins.push(bin)}
+   bin.cuts.push(len);bin.used+=len+kerf;
+  }
+  const waste=bins.reduce((a,b)=>a+Math.max(0,stock-b.used),0);
+  summary.push([name,cuts.length,bins.length,waste,oversize.length]);
+  html+='<h2>'+safe(name)+'</h2><p>Rezov: '+cuts.length+' · Vstupné tyče: '+bins.length+' · Zvyšok: '+fmtMm(waste)+' mm</p>';
+  if(oversize.length)html+='<p><b>POZOR: '+oversize.length+' rezov je dlhších ako vstupná tyč!</b></p>';
+  html+='<table><tr><th>Tyč</th><th>Rozrezanie [mm]</th><th>Zvyšok [mm]</th></tr>'+bins.map((b,j)=>'<tr><td>'+(j+1)+'</td><td>'+b.cuts.map(fmtMm).join(" + ")+'</td><td>'+fmtMm(Math.max(0,stock-b.used))+'</td></tr>').join("")+'</table>';
+ }
+ html+='<h2>Rekapitulácia</h2><table><tr><th>Profil</th><th>Rezy</th><th>Tyče</th><th>Zvyšok mm</th><th>Nad dĺžku</th></tr>'+summary.map(v=>'<tr><td>'+safe(v[0])+'</td><td>'+v[1]+'</td><td>'+v[2]+'</td><td>'+fmtMm(v[3])+'</td><td>'+v[4]+'</td></tr>').join("")+'</table><p>Optimalizácia: First-Fit Decreasing, 1 rez na každý diel. Vstupné dĺžky profilov sú skúšobné; odrezky a skladové rezervácie sa zatiaľ nezohľadňujú.</p></div>';
+ $("#v7PrintArea").innerHTML=html;
  window.print();
 }
 function glassOrderV7(i){
