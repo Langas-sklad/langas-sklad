@@ -363,8 +363,6 @@ function cutPlanV8(i){
  html+='<h2>Rekapitulácia</h2><table><tr><th>Profil</th><th>Tyč mm</th><th>Rezy</th><th>Tyče</th><th>Zvyšok mm</th><th>Nad dĺžku</th></tr>'+summary.map(v=>'<tr><td>'+safe(v[0])+'</td><td>'+fmtMm(v[1])+'</td><td>'+v[2]+'</td><td>'+v[3]+'</td><td>'+fmtMm(v[4])+'</td><td>'+v[5]+'</td></tr>').join("")+'</table><p>Optimalizácia: First-Fit Decreasing, 1 rez na každý diel. Vstupné dĺžky profilov sú skúšobné; odrezky a skladové rezervácie sa zatiaľ nezohľadňujú.</p></div>';
  $("#v7PrintArea").innerHTML=html;
  window.print();
-}
-
  host.classList.add("hidden");
  };
 }
