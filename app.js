@@ -340,11 +340,11 @@ function v7QrScan(payload){let parts=payload.trim().split("|");if(parts.length!=
 function openV7(i){const o=submittedOrders[i],el=$("#v7detail-"+i);el.classList.remove("hidden");
  el.innerHTML='<h3>Detail zákazky · '+safe(o.id)+'</h3><p><b>Odberateľ:</b> '+safe(o.customer)+' · <b>Zákazka:</b> '+safe(o.name)+' · <b>Dátum:</b> '+safe(o.time)+'</p><p><b>Stav:</b> '+orderStages[o.stage]+'</p>'+
  o.items.map((x,j)=>'<div class="v7position"><b>Pozícia '+safe(x.pos)+' · '+sysLabel(x.d)+' · '+safe(x.w)+' × '+safe(x.h)+' mm · '+safe(x.qty)+' ks</b>'+positionDrawing(x)+'<p>'+safe(x.glass)+' · '+safe(x.color)+' · '+safe(x.side)+' · Teleskop '+safe(x.comp)+' · Obojstranné madlo '+safe(x.fix)+'</p><p>Dokončené: '+(x.done||0)+' / '+x.qty+'</p><button type="button" class="v7productionBtn" data-i="'+i+'" data-j="'+j+'" '+(o.stage<1||!canMakeStandard(x)?'disabled':'')+'>📄 Výrobný list A4 (test 2D–6D)</button><button type="button" class="v7finish" data-i="'+i+'" data-j="'+j+'" '+(o.stage<2||x.done>=x.qty?'disabled':'')+'>✓ Dokončiť 1 ks (simulácia QR)</button></div>').join("")+
- '<div class="actions"><button class="v7confirm" data-i="'+i+'" '+(o.stage!==0?'disabled':'')+'>Potvrdiť objednávku</button><button class="v7start" data-i="'+i+'" '+(o.stage!==1?'disabled':'')+'>Začať výrobu</button><button class="v7ready" data-i="'+i+'" '+(o.stage!==2||o.items.some(x=>(x.done||0)<x.qty)?'disabled':'')+'>Pripravená na expedíciu</button><button class="v7print" data-i="'+i+'">Tlačiť súhrn / PDF</button><button class="v7allProduction" data-i="'+i+'" '+(o.stage<1?"disabled":"")+'>Výrobné listy – všetky pozície</button><button class="v7glassButton" data-i="'+i+'" '+(o.stage<1?"disabled":"")+'>Objednávka skla – všetky pozície</button><button class="v8cutPlan" data-i="'+i+'" '+(o.stage<1?"disabled":"")+'>Rezací plán zákazky (test)</button><button class="v86ProductionLabels" data-i="'+i+'" '+(o.stage<1?"disabled":"")+'>🏷️ Tlačiť etikety pre výrobu</button></div><p class="muted">Objednávka skla je dostupná po potvrdení. E-mail sa zatiaľ neodosiela.</p>';
+ '<div class="actions"><button class="v7confirm" data-i="'+i+'" '+(o.stage!==0?'disabled':'')+'>Potvrdiť objednávku</button><button class="v7start" data-i="'+i+'" '+(o.stage!==1?'disabled':'')+'>Začať výrobu</button><button class="v7ready" data-i="'+i+'" '+(o.stage!==2||o.items.some(x=>(x.done||0)<x.qty)?'disabled':'')+'>Pripravená na expedíciu</button><button class="v7print" data-i="'+i+'">Tlačiť súhrn / PDF</button><button class="v7allProduction" data-i="'+i+'" '+(o.stage<1?"disabled":"")+'>Výrobné listy – všetky pozície</button><button class="v7glassButton" data-i="'+i+'" '+(o.stage<1?"disabled":"")+'>Objednávka skla – všetky pozície</button><button class="v8cutPlan" data-i="'+i+'" '+(o.stage<1?"disabled":"")+'>Rezací plán zákazky (test)</button><button class="frameStockCheck" data-i="'+i+'" '+(o.stage<1?"disabled":"")+'>Kontrola skladu – rámové</button><button class="v86ProductionLabels" data-i="'+i+'" '+(o.stage<1?"disabled":"")+'>🏷️ Tlačiť etikety pre výrobu</button></div><p class="muted">Objednávka skla je dostupná po potvrdení. E-mail sa zatiaľ neodosiela.</p>';
  el.querySelector(".v7confirm").onclick=()=>{o.stage=1;renderNewOrders();openV7(i)};
  el.querySelector(".v7start").onclick=()=>{o.stage=2;renderNewOrders();openV7(i)};
  el.querySelector(".v7ready").onclick=()=>{o.stage=3;o.shipStage=0;o.notice="Objednávka "+o.id+" je pripravená na vyzdvihnutie / expedíciu.";renderNewOrders();openV7(i);alert("Testovacia notifikácia pre XY: "+o.notice)};
- el.querySelector(".v7print").onclick=()=>printV7(i);el.querySelector(".v7allProduction").onclick=()=>productionAll(i);el.querySelector(".v7glassButton").onclick=()=>glassOrderV7(i);el.querySelector(".v8cutPlan").onclick=()=>cutPlanV8(i);el.querySelector(".v86ProductionLabels").onclick=()=>printPackageLabels(i);el.querySelectorAll(".v7productionBtn").forEach(b=>b.onclick=()=>productionStandard(+b.dataset.i,+b.dataset.j));
+ el.querySelector(".v7print").onclick=()=>printV7(i);el.querySelector(".v7allProduction").onclick=()=>productionAll(i);el.querySelector(".v7glassButton").onclick=()=>glassOrderV7(i);el.querySelector(".v8cutPlan").onclick=()=>cutPlanV8(i);el.querySelector(".frameStockCheck").onclick=()=>checkFrameStock(i);el.querySelector(".v86ProductionLabels").onclick=()=>printPackageLabels(i);el.querySelectorAll(".v7productionBtn").forEach(b=>b.onclick=()=>productionStandard(+b.dataset.i,+b.dataset.j));
  el.querySelectorAll(".v7finish").forEach(b=>b.onclick=()=>{let x=o.items[+b.dataset.j];if(o.stage<2){alert("Najprv klikni Potvrdiť objednávku a potom Začať výrobu. Až následne môže QR potvrdiť dokončenie.");return}if(x.done>=x.qty){alert("Táto pozícia je už dokončená.");return}if(confirm("QR načítaný: "+o.id+" / pozícia "+x.pos+"\\nPotvrdiť dokončenie 1 ks?")){x.done++;renderNewOrders();openV7(i);let d=$("#v7detail-"+i);d.insertAdjacentHTML("afterbegin",'<div class="note">✓ QR simulácia: dokončenie pozície '+safe(x.pos)+' bolo zaznamenané.</div>')}});
 }
 const specs={2:[2,19],3:[3,27.3],4:[4,31.5],5:[5,34],6:[6,35.7],22:[4,19.8,2],33:[6,27.8,3],44:[8,31.9,4],55:[10,34.3,5],66:[12,36.2,6]};
@@ -384,6 +384,36 @@ function productionAll(i){
  }
  $("#v7PrintArea").innerHTML=pages.join("");
  window.print();
+}
+const frameStockCodes={"Vertikálny profil":"P001","Vertikálny profil s madlom":"P002","Vertikálny profil s madlom obojstranne":"P003","Horizontálny profil":"P004","2-koľajový profil":"P006","3-koľajový profil":"P007","4-koľajový profil":"P008","5-koľajový profil":"P009","Teleskop 1 a 2 – sada":null,"Dorazový profil":null,"Stredový dorazový profil":null};
+function frameColor(c){const m=String(c).match(/(7016|9016|8017|9006)/);return m?m[1]:(/surov/i.test(c)?"Surová":null)}
+function checkFrameStock(i){
+ const o=submittedOrders[i];if(!o||o.stage<1)return alert("Najprv potvrď objednávku.");
+ const requirements=new Map(),issues=[];
+ function add(name,len,qty,color){if(!qty)return;const key=name+"|"+color;const v=requirements.get(key)||{name,color,cuts:[]};for(let k=0;k<qty;k++)v.cuts.push(len);requirements.set(key,v)}
+ try{o.items.forEach(x=>{const p=calcProduction(x),q=Number(x.qty),color=frameColor(x.color);if(!color)throw Error("Neznáma farba "+x.color);
+ add(p.rail+"-koľajový profil",p.split?Number(x.w)/2:Number(x.w),(p.split?4:2)*q,color);
+ add("Dorazový profil",p.eff-17,2*q,color);
+ add("Vertikálny profil",p.vert,p.normal*q,color);
+ add("Vertikálny profil s madlom",p.vert,p.handle*q,color);
+ add("Vertikálny profil s madlom obojstranne",p.vert,p.both*q,color);
+ add("Horizontálny profil",p.hor,p.n*2*q,color);
+ add("Stredový dorazový profil",p.vert,(p.dual?1:0)*q,color);
+ if(x.comp==="Áno")add("Teleskop 1 a 2 – sada",Number(x.w),q,color);
+ })}catch(e){return alert(e.message)}
+ const rows=[];
+ for(const v of requirements.values()){
+ const code=frameStockCodes[v.name];
+ if(!code){rows.push([v.name,v.color,v.cuts.length,"Nevyriešené mapovanie","—"]);issues.push(v.name);continue}
+ const candidates=P.filter(x=>x.profileCode===code&&frameColor(x.color)===v.color&&x.qty>0).map(x=>({...x,available:x.qty-reservedFor(x.code)})).filter(x=>x.available>0);
+ const bins=[];for(const x of candidates)for(let j=0;j<x.available;j++)bins.push({length:x.length,remaining:x.length,code:x.code});
+ bins.sort((a,b)=>a.length-b.length);
+ let missing=0;for(const cut of v.cuts.sort((a,b)=>b-a)){const b=bins.filter(b=>b.remaining>=cut+5).sort((a,b)=>(a.remaining-cut)-(b.remaining-cut))[0];if(b)b.remaining-=cut+5;else missing++}
+ rows.push([v.name,v.color,v.cuts.length,missing?"Chýba "+missing+" rezov":"Predbežne dostupné",candidates.map(x=>x.length+" mm × "+x.available).join("; ")||"Bez zásoby"]);
+ if(missing)issues.push(v.name);
+ }
+ const html='<div class="v7production"><h1>LANGAS · KONTROLA SKLADU</h1><p>'+safe(o.id)+' · '+safe(o.name)+'</p><p>Predbežný výpočet podľa inventúry, farby a dĺžky tyčí. Rez 5 mm. Bez rezervácie.</p><table><tr><th>Profil</th><th>Farba</th><th>Rezov</th><th>Výsledok</th><th>Dostupné tyče</th></tr>'+rows.map(r=>'<tr>'+r.map(v=>'<td>'+safe(v)+'</td>').join("")+'</tr>').join("")+'</table><p><b>'+(issues.length?"Vyžaduje kontrolu: "+safe(issues.join(", ")):"Všetky namapované rezy predbežne pokryté")+'</b></p><p>Upozornenie: dorazy a teleskopy ešte nemajú potvrdenú väzbu na inventúru. Ide o skúšobnú kontrolu bez zápisu spotreby.</p></div>';
+ $("#v7PrintArea").innerHTML=html;window.print();
 }
 function cutPlanV8(i){
  const o=submittedOrders[i];if(!o||o.stage<1)return alert("Najprv potvrď objednávku.");
