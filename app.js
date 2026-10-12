@@ -463,6 +463,28 @@ function packFrame(cuts,candidates,kerf){
  const scrap=bars.reduce((s,b)=>s+(b.free<200?b.free:0),0)+saw;
  return {bars,missing,used,parts,saw,reusable,scrap,yield:used?parts/used*100:0,recovery:used?(parts+reusable)/used*100:0};
 }
+function packFrameOptimized(cuts,candidates,kerf){
+ const baseline=packFrame(cuts,candidates,kerf);
+ if(candidates.length<2||cuts.length>500)return baseline;
+ const sorted=[...candidates].sort((a,b)=>a.length-b.length);
+ const scenarios=[baseline];
+ for(const x of sorted)scenarios.push(packFrame(cuts,[x],kerf));
+ const cap=sorted.reduce((s,x)=>s+x.qty,0);
+ if(sorted.length===2&&cap<=300){
+  for(let first=0;first<=Math.min(sorted[0].qty,cuts.length);first++){
+   const limited=[{...sorted[0],qty:first},sorted[1]];
+   scenarios.push(packFrame(cuts,limited,kerf));
+  }
+ }else{
+  for(const x of sorted){
+   const steps=[0,1,2,3,5,8,13,21,34,55,x.qty].filter((v,i,a)=>v<=x.qty&&a.indexOf(v)===i);
+   for(const n of steps)scenarios.push(packFrame(cuts,sorted.map(y=>({...y,qty:y.code===x.code?n:y.qty})),kerf));
+  }
+ }
+ const score=p=>[p.missing.length,p.used,p.scrap,p.bars.length];
+ scenarios.sort((a,b)=>{const aa=score(a),bb=score(b);for(let i=0;i<aa.length;i++)if(aa[i]!==bb[i])return aa[i]-bb[i];return 0});
+ return scenarios[0];
+}
 function openFrameOptimizer(i){
  const o=submittedOrders[i];if(!o||o.stage<1)return alert("Najprv potvrď objednávku.");
  let req;try{req=frameRequirements(o)}catch(e){return alert(e.message)}
@@ -478,10 +500,10 @@ function openFrameOptimizer(i){
   for(const {r,j,available} of options){
    let stock=available;
    if(custom){const selected=host.querySelector('.optStockLength[data-j="'+j+'"]');stock=available.filter(x=>x.length===Number(selected.value))}
-   let plan=packFrame(r.cuts,stock,kerf),paint=null;
+   let plan=custom?packFrame(r.cuts,stock,kerf):packFrameOptimized(r.cuts,stock,kerf),paint=null;
    if(plan.missing.length&&r.color!=="Surová"){
     const raw=frameCandidates(r.profile,"Surová");
-    if(raw.length){const rawPlan=packFrame(plan.missing,raw,kerf);paint={...rawPlan,qty:rawPlan.bars.length};}
+    if(raw.length){const rawPlan=packFrameOptimized(plan.missing,raw,kerf);paint={...rawPlan,qty:rawPlan.bars.length};}
    }
    results.push({r,plan,paint});
   }
