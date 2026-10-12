@@ -237,6 +237,22 @@ function copyOnlineOrder(i){let x=onlineOrders[i];if(x){onlineOrders.push({...x,
 function deleteOnlineOrder(i){if(confirm("Odstrániť tento systém?")){onlineOrders.splice(i,1);renderOnlineOrders()}}
 function loadOnlineOrder(i){let x=onlineOrders[i];if(!x)return;editingOrder=i;$("#ordPos").value=x.pos;$("#ordW").value=x.w;$("#ordH").value=x.h;$("#ordD").value=x.d;let gp=x.glass.split(" – ");$("#ordGlass").value=gp[0];$("#ordGlassVariant").value=gp[1]||"Číre";$("#ordSide").value=x.side;$("#ordComp").value=x.comp;$("#ordFix").value=x.fix;$("#ordQty").value=x.qty;let std=colorOpts.map(x=>x[0]);if(std.includes(x.color))$("#ordColor").value=x.color;else{$("#ordColor").value="Iná RAL";$("#ordRal").value=x.color}$("#addOrder").textContent="✓ ULOŽIŤ ZMENY";syncCards();drawOrderPreview();show("orders")}
 $("#addOrder").onclick=()=>{let x=currentOnlineOrder();if(editingOrder>=0){onlineOrders[editingOrder]=x;editingOrder=-1;$("#addOrder").textContent="🛒 + PRIDAŤ DO OBJEDNÁVKY"}else{onlineOrders.push(x);$("#ordPos").value=String(onlineOrders.length+1)}renderOnlineOrders()};
+function loadMainTest(){
+ if(onlineOrders.length&&!confirm("Nahradiť aktuálne rozpracované položky šiestimi pozíciami hlavného testu?"))return;
+ const widths=[3600,4600,3300,4900,4650,3750];
+ onlineOrders=widths.map((w,i)=>({name:"Hlavný test optimalizácie",pos:String(i+1),w,h:1500,d:4,glass:"4 mm – Číre",side:"Ľavá",comp:i>=4?"Áno":"Nie",fix:"Nie",color:"RAL 9016",qty:1}));
+ editingOrder=-1;
+ $("#ordName").value="Hlavný test optimalizácie";
+ $("#ordPos").value="7";
+ $("#addOrder").textContent="🛒 + PRIDAŤ DO OBJEDNÁVKY";
+ renderOnlineOrders();
+ loadOnlineOrder(0);
+ editingOrder=-1;
+ $("#ordPos").value="7";
+ $("#addOrder").textContent="🛒 + PRIDAŤ DO OBJEDNÁVKY";
+ $("#orderMsg").innerHTML='<div class="note">Načítaných 6 testovacích pozícií. Môžeš ich upraviť, pridať ďalšie alebo odoslať ako novú testovaciu objednávku.</div>';
+}
+$("#loadMainTest").onclick=loadMainTest;
 $("#duplicateOrder").onclick=()=>{$("#ordPos").value=String(onlineOrders.length+1)};
 
 const safe=s=>String(s??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
