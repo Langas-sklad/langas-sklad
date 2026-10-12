@@ -498,7 +498,7 @@ function openFrameOptimizer(i){
    return '<tr><td>'+safe(r.profile+" · "+r.name+" · "+r.color)+'</td><td>'+bars.length+'</td><td>'+fmtMm(pct)+' %</td><td>'+fmtMm(plan.reusable+(paint?.reusable||0))+' mm</td><td>'+fmtMm(plan.scrap+(paint?.scrap||0))+' mm</td><td>'+ (paint?paint.missing.length:plan.missing.length)+'</td></tr><tr><td colspan="6"><small>'+detail+'</small>'+(paint&&paint.bars.length?'<p><b>Navrhnuté lakovanie:</b> '+paint.bars.length+' surových tyčí na '+safe(r.color)+'; vyžaduje schválenie.</p>':'')+'</td></tr>';
   }).join("");
   $("#optResult").innerHTML='<h3>Výsledok optimalizácie</h3><p><b>Vyťaženosť: '+fmtMm(used?parts/used*100:0)+' %</b> · Efektívne využitie: '+fmtMm(used?(parts+reusable)/used*100:0)+' % · Použiteľné zvyšky: '+fmtMm(reusable)+' mm · Odpad vrátane rezu: '+fmtMm(scrap)+' mm · Chýbajúce rezy: '+shortage+'</p><table><tr><th>Profil</th><th>Tyče</th><th>Vyťaženosť</th><th>Zvyšky</th><th>Odpad</th><th>Chýba</th></tr>'+rows+'</table><p>Odporúčanie je heuristické, nie matematicky garantované optimum. Zvyšok od 200 mm sa predbežne považuje za použiteľný. Lakovanie vyžaduje kontrolu termínu a schválenie. Materiál nebol rezervovaný ani odpísaný.</p><button id="optPrint">Tlačiť výsledok</button>';
-  $("#optPrint").onclick=()=>{const copy=$("#optResult").cloneNode(true);copy.querySelectorAll("button").forEach(b=>b.remove());$("#v7PrintArea").innerHTML='<div class="v7production"><h1>LANGAS · Optimalizácia '+safe(o.id)+'</h1>'+copy.innerHTML+'</div>';window.print()};
+  $("#optPrint").onclick=()=>{$("#v7PrintArea").innerHTML=$("#optResult").innerHTML;window.print()};
  };
  host.scrollIntoView({behavior:"smooth",block:"start"});
 }
