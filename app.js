@@ -512,6 +512,7 @@ function openFrameOptimizer(i){
  $("#optMode").onchange=renderInputs;renderInputs();$("#optClose").onclick=()=>host.classList.add("hidden");
  $("#optCalculate").onclick=()=>{
   const kerf=Number($("#optKerf").value);if(!Number.isFinite(kerf)||kerf<0||kerf>20)return alert("Neplatná šírka rezu.");
+  o.cuttingApproval=null;
   const custom=$("#optMode").value==="custom",results=[];
   for(const {r,j,available} of options){
    let stock=available;
@@ -535,8 +536,16 @@ function openFrameOptimizer(i){
    const detail=bars.map((b,j)=>(j+1)+". "+b.length+" mm → "+b.cuts.map(fmtMm).join(" + ")+"; zvyšok "+fmtMm(b.free)+" mm"+(b.color==="Surová"?" (lakovať)":"")).join("<br>");
    return '<tr><td>'+safe(r.profile+" · "+r.name+" · "+r.color)+'</td><td>'+bars.length+'</td><td>'+fmtMm(pct)+' %</td><td>'+fmtMm(plan.reusable+(paint?.reusable||0))+' mm</td><td>'+fmtMm(plan.scrap+(paint?.scrap||0))+' mm</td><td>'+ (paint?paint.missing.length:plan.missing.length)+'</td></tr><tr><td colspan="6"><small>'+detail+'</small>'+(paint&&paint.bars.length?'<p><b>Navrhnuté lakovanie:</b> '+paint.bars.length+' surových tyčí na '+safe(r.color)+'; vyžaduje schválenie.</p>':'')+'</td></tr>';
   }).join("");
-  $("#optResult").innerHTML='<h3>Výsledok optimalizácie</h3><p><b>Vyťaženosť: '+fmtMm(used?parts/used*100:0)+' %</b> · Efektívne využitie: '+fmtMm(used?(parts+reusable)/used*100:0)+' % · Použiteľné zvyšky: '+fmtMm(reusable)+' mm · Odpad vrátane rezu: '+fmtMm(scrap)+' mm · Chýbajúce rezy: '+shortage+'</p><table><tr><th>Profil</th><th>Tyče</th><th>Vyťaženosť</th><th>Zvyšky</th><th>Odpad</th><th>Chýba</th></tr>'+rows+'</table><p>Odporúčanie je heuristické, nie matematicky garantované optimum. Zvyšok od 200 mm sa predbežne považuje za použiteľný. Lakovanie vyžaduje kontrolu termínu a schválenie. Materiál nebol rezervovaný ani odpísaný.</p><button id="optPrint">Tlačiť výsledok</button>';
+  $("#optResult").innerHTML='<h3>Výsledok optimalizácie</h3><p><b>Vyťaženosť: '+fmtMm(used?parts/used*100:0)+' %</b> · Efektívne využitie: '+fmtMm(used?(parts+reusable)/used*100:0)+' % · Použiteľné zvyšky: '+fmtMm(reusable)+' mm · Odpad vrátane rezu: '+fmtMm(scrap)+' mm · Chýbajúce rezy: '+shortage+'</p><table><tr><th>Profil</th><th>Tyče</th><th>Vyťaženosť</th><th>Zvyšky</th><th>Odpad</th><th>Chýba</th></tr>'+rows+'</table><p>Odporúčanie je heuristické, nie matematicky garantované optimum. Zvyšok od 200 mm sa predbežne považuje za použiteľný. Lakovanie vyžaduje kontrolu termínu a schválenie. Materiál nebol rezervovaný ani odpísaný.</p><button id="optPrint">Tlačiť výsledok</button><button id="optApprove" '+(shortage>0?'disabled title="Chýba materiál"':'')+'>Potvrdiť rezací plán</button><p id="optApprovalStatus"></p>';
   $("#optPrint").onclick=()=>{$("#v7PrintArea").innerHTML=$("#optResult").innerHTML;window.print()};
+  $("#optApprove").onclick=()=>{
+   if(shortage>0)return alert("Rezanie nemožno potvrdiť: chýba materiál.");
+   if(results.some(x=>x.paint&&x.paint.bars.length))return alert("Najprv treba samostatne schváliť lakovanie surových profilov. Rezanie zatiaľ nemožno potvrdiť.");
+   if(!confirm("Schváliť tento rezací plán pre výrobu? Zatiaľ sa materiál nerezervuje ani neodpisuje."))return;
+   o.cuttingApproval={when:new Date().toLocaleString("sk-SK"),mode:custom?"Vlastné dĺžky":"Odporúčané dĺžky",yield:used?parts/used*100:0};
+   $("#optApprovalStatus").textContent="✓ Rezací plán potvrdený (test): "+o.cuttingApproval.when;
+   $("#optApprove").disabled=true;
+  };
  };
  host.scrollIntoView({behavior:"smooth",block:"start"});
 }
