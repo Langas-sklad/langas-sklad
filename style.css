@@ -80,3 +80,37 @@
 .optNotice{flex:1;background:#fff4df;border:1px solid #f2d6a1;border-radius:8px;padding:12px;font-size:13px}
 .optFooter button:last-of-type{background:#138650}
 @media(max-width:780px){.optColumns,.optSetup{grid-template-columns:1fr}.optStats{grid-template-columns:repeat(2,1fr)}.optHeading h2{font-size:19px}.optSteps span{font-size:10px;padding:7px}.optDashboard{padding:10px}}
+
+
+/* LANGAS V10 UI preview — visual-only layer */
+:root{--navy:#18385f;--blue:#1766e8;--ink:#142d53;--line:#dbe5f2;--pale:#f5f8fd}
+body{background:#f5f8fd;color:var(--ink);font-family:Inter,"Segoe UI",system-ui,sans-serif}
+header{background:linear-gradient(110deg,#18365d,#294c78);padding:15px 26px;display:flex;justify-content:space-between;align-items:center;gap:12px;box-shadow:0 2px 10px #1531511a}
+header h1{font-size:23px;letter-spacing:.4px;margin:0;color:#fff}
+header div{font-size:12px;color:#c7dcf8}
+.appShell{background:#f5f8fd}
+.sideMenu{background:#fff!important;border-right:1px solid var(--line)!important;padding:16px 12px!important}
+.sideTitle{color:#7290b2!important;letter-spacing:1px}
+.sideMenu .module{border:1px solid transparent!important;background:transparent!important;color:#284b75!important;font-weight:600!important;text-align:left!important;border-radius:8px!important;box-shadow:none!important}
+.sideMenu .module:hover{background:#eff5ff!important}
+.sideMenu .activeModule{background:#e6f0ff!important;color:#0959d7!important;border-color:#c5dbff!important}
+main{max-width:1600px!important;padding:22px 25px!important}
+nav{padding:5px 0 13px;border-bottom:1px solid var(--line);margin-bottom:18px}
+button{background:#1665e8;border-radius:6px;box-shadow:0 1px 2px #1e3d671a;transition:background .15s,transform .15s}
+button:hover{filter:brightness(.96)}
+.tab{background:#fff!important;color:#31577f!important;border:1px solid #d7e4f5!important}
+.tab.active{background:#1766e8!important;color:white!important;border-color:#1766e8!important}
+.card,.basketCard,.v7order{border:1px solid #dbe6f4!important;border-radius:9px!important;box-shadow:0 2px 12px #23436b0a;background:#fff!important}
+.card h2,.basketCard h2,.v7order h3{color:#163967;letter-spacing:-.2px}
+table{border-collapse:separate;border-spacing:0;background:#fff}
+th{background:#eaf2fc!important;color:#183b67!important;font-weight:700!important;border-bottom:1px solid #d4e1f0!important}
+td{border-bottom:1px solid #e5edf7!important;color:#23415f}
+tr:nth-child(even) td{background:#fafcff}
+input,select,textarea{border:1px solid #c9d9eb!important;border-radius:6px!important;background:#fff!important;color:#18365a!important}
+input:focus,select:focus,textarea:focus{outline:2px solid #83b2ff!important;outline-offset:1px}
+.stat{color:#135cce}
+.note{background:#eaf4ff!important;border:1px solid #cde3ff!important;color:#194a83!important}
+.muted{color:#7189a5!important}
+.systemFilters button,.actions button{margin-bottom:4px}
+@media(max-width:800px){header{padding:13px 15px;display:block}header h1{font-size:20px}main{padding:12px!important}.sideMenu{padding:8px!important}.sideMenu .module{font-size:12px!important}.grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.card{padding:12px!important}nav{overflow-x:auto;flex-wrap:nowrap}nav button{white-space:nowrap}table{min-width:650px}}
+@media print{header,.sideMenu,nav{display:none!important}body{background:#fff!important}.card{box-shadow:none!important}}
