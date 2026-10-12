@@ -385,12 +385,12 @@ function productionAll(i){
  $("#v7PrintArea").innerHTML=pages.join("");
  window.print();
 }
-const frameStockCodes={"Vertikálny profil":"P001","Vertikálny profil s madlom":"P002","Vertikálny profil s madlom obojstranne":"P003","Horizontálny profil":"P004","2-koľajový profil":"P006","3-koľajový profil":"P007","4-koľajový profil":"P008","5-koľajový profil":"P009","Teleskop 1 a 2 – sada":null,"Dorazový profil":null,"Stredový dorazový profil":null};
+const frameStockCodes={"Vertikálny profil":"P001","Vertikálny profil s madlom":"P002","Vertikálny profil s madlom obojstranne":"P003","Horizontálny profil":"P004","2-koľajový profil":"P006","3-koľajový profil":"P007","4-koľajový profil":"P008","5-koľajový profil":"P009","Teleskop 1":"P010","Teleskop 2":"P011","Dorazový profil":"P005","Stredový dorazový profil":"P005"};
 function frameColor(c){const m=String(c).match(/(7016|9016|8017|9006)/);return m?m[1]:(/surov/i.test(c)?"Surová":null)}
 function checkFrameStock(i){
  const o=submittedOrders[i];if(!o||o.stage<1)return alert("Najprv potvrď objednávku.");
  const requirements=new Map(),issues=[];
- function add(name,len,qty,color){if(!qty)return;const key=name+"|"+color;const v=requirements.get(key)||{name,color,cuts:[]};for(let k=0;k<qty;k++)v.cuts.push(len);requirements.set(key,v)}
+ function add(name,len,qty,color){if(!qty)return;const profile=frameStockCodes[name];const key=(profile||name)+"|"+color;const v=requirements.get(key)||{name,color,profile,cuts:[]};for(let k=0;k<qty;k++)v.cuts.push(len);requirements.set(key,v)}
  try{o.items.forEach(x=>{const p=calcProduction(x),q=Number(x.qty),color=frameColor(x.color);if(!color)throw Error("Neznáma farba "+x.color);
  add(p.rail+"-koľajový profil",p.split?Number(x.w)/2:Number(x.w),(p.split?4:2)*q,color);
  add("Dorazový profil",p.eff-17,2*q,color);
@@ -399,20 +399,20 @@ function checkFrameStock(i){
  add("Vertikálny profil s madlom obojstranne",p.vert,p.both*q,color);
  add("Horizontálny profil",p.hor,p.n*2*q,color);
  add("Stredový dorazový profil",p.vert,(p.dual?1:0)*q,color);
- if(x.comp==="Áno")add("Teleskop 1 a 2 – sada",Number(x.w),q,color);
+ if(x.comp==="Áno"){add("Teleskop 1",Number(x.w),q,color);add("Teleskop 2",Number(x.w),q,color)}
  })}catch(e){return alert(e.message)}
  const rows=[];
  for(const v of requirements.values()){
- const code=frameStockCodes[v.name];
+ const code=v.profile;
  if(!code){rows.push([v.name,v.color,v.cuts.length,"Nevyriešené mapovanie","—"]);issues.push(v.name);continue}
  const candidates=P.filter(x=>x.profileCode===code&&frameColor(x.color)===v.color&&x.qty>0).map(x=>({...x,available:x.qty-reservedFor(x.code)})).filter(x=>x.available>0);
  const bins=[];for(const x of candidates)for(let j=0;j<x.available;j++)bins.push({length:x.length,remaining:x.length,code:x.code});
  bins.sort((a,b)=>a.length-b.length);
  let missing=0;for(const cut of v.cuts.sort((a,b)=>b-a)){const b=bins.filter(b=>b.remaining>=cut+5).sort((a,b)=>(a.remaining-cut)-(b.remaining-cut))[0];if(b)b.remaining-=cut+5;else missing++}
- rows.push([v.name,v.color,v.cuts.length,missing?"Chýba "+missing+" rezov":"Predbežne dostupné",candidates.map(x=>x.length+" mm × "+x.available).join("; ")||"Bez zásoby"]);
+ rows.push([code+" · "+(code==="P005"?"Doraz / stredový doraz":v.name),v.color,v.cuts.length,missing?"Chýba "+missing+" rezov":"Predbežne dostupné",candidates.map(x=>x.length+" mm × "+x.available).join("; ")||"Bez zásoby"]);
  if(missing)issues.push(v.name);
  }
- const html='<div class="v7production"><h1>LANGAS · KONTROLA SKLADU</h1><p>'+safe(o.id)+' · '+safe(o.name)+'</p><p>Predbežný výpočet podľa inventúry, farby a dĺžky tyčí. Rez 5 mm. Bez rezervácie.</p><table><tr><th>Profil</th><th>Farba</th><th>Rezov</th><th>Výsledok</th><th>Dostupné tyče</th></tr>'+rows.map(r=>'<tr>'+r.map(v=>'<td>'+safe(v)+'</td>').join("")+'</tr>').join("")+'</table><p><b>'+(issues.length?"Vyžaduje kontrolu: "+safe(issues.join(", ")):"Všetky namapované rezy predbežne pokryté")+'</b></p><p>Upozornenie: dorazy a teleskopy ešte nemajú potvrdenú väzbu na inventúru. Ide o skúšobnú kontrolu bez zápisu spotreby.</p></div>';
+ const html='<div class="v7production"><h1>LANGAS · KONTROLA SKLADU</h1><p>'+safe(o.id)+' · '+safe(o.name)+'</p><p>Predbežný výpočet podľa inventúry, farby a dĺžky tyčí. Rez 5 mm. Bez rezervácie.</p><table><tr><th>Profil</th><th>Farba</th><th>Rezov</th><th>Výsledok</th><th>Dostupné tyče</th></tr>'+rows.map(r=>'<tr>'+r.map(v=>'<td>'+safe(v)+'</td>').join("")+'</tr>').join("")+'</table><p><b>'+(issues.length?"Vyžaduje kontrolu: "+safe(issues.join(", ")):"Všetky namapované rezy predbežne pokryté")+'</b></p><p>Doraz a stredový doraz čerpajú zo spoločného P005. Teleskop 1 = P010 (6615), Teleskop 2 = P011 (6616). Ide o skúšobnú kontrolu bez rezervácie a odpisu.</p></div>';
  $("#v7PrintArea").innerHTML=html;window.print();
 }
 function cutPlanV8(i){
