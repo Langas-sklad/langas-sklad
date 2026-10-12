@@ -46,3 +46,37 @@
  .v86middle span{font-size:8pt}
  .v86qr img{width:14mm;height:14mm;display:block;object-fit:contain}
 }
+
+/* LANGAS V9.7 optimization dashboard */
+.optDashboard{background:#f7faff;border:1px solid #dce7f4;border-radius:14px;padding:18px;color:#19335c}
+.optHeading{display:flex;justify-content:space-between;gap:16px;align-items:center}
+.optHeading small{color:#2370bd;font-size:11px;font-weight:700}
+.optHeading h2{font-size:23px;margin:7px 0;color:#102e57}
+.optHeading p{color:#6d86a8;margin:0 0 12px}
+.optTag{background:#fff0bc;color:#985900;padding:8px 12px;border-radius:7px;font-size:12px;font-weight:800}
+.optSteps{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:14px 0}
+.optSteps span{padding:11px;background:#e7effa;border-radius:7px;color:#1d4d89;font-weight:700;font-size:12px}
+.optSteps span:nth-child(2){background:#cfe4ff;color:#0864d0}
+.optSetup{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:14px;background:#fff;border:1px solid #dce7f4;border-radius:9px}
+.optActions{display:flex;gap:9px;margin:12px 0}
+.optColumns{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(240px,1fr);gap:14px}
+.optPanel{background:white;border:1px solid #d8e4f2;border-radius:10px;padding:14px;margin:12px 0}
+.optPanel h3{margin:0 0 12px;color:#173b72;font-size:17px}
+.optScroll{overflow:auto}
+.optPanel table{min-width:650px;font-size:12px}
+.optPanel th{background:#eaf1fa;color:#355274}
+.optPanel td{border-bottom:1px solid #e8eff8}
+.optPaint{background:#fff5e2;border:1px solid #f6d68e;padding:13px;border-radius:8px;font-size:13px}
+.optPaint h3{color:#915600}
+.optPaint button{background:#1468e8}
+.optPaint.optOk{background:#eaf8ef;border-color:#bce6c8}
+.optPaint.optOk h3{color:#137b3d}
+.optStats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}
+.optStats>div{background:#eef5fd;border:1px solid #dce8f7;border-radius:8px;padding:12px}
+.optStats small{display:block;color:#56708d;font-size:11px}
+.optStats strong{display:block;font-size:22px;color:#117d50;margin-top:5px}
+.optCutDetail{line-height:1.6}
+.optFooter{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0}
+.optNotice{flex:1;background:#fff4df;border:1px solid #f2d6a1;border-radius:8px;padding:12px;font-size:13px}
+.optFooter button:last-of-type{background:#138650}
+@media(max-width:780px){.optColumns,.optSetup{grid-template-columns:1fr}.optStats{grid-template-columns:repeat(2,1fr)}.optHeading h2{font-size:19px}.optSteps span{font-size:10px;padding:7px}.optDashboard{padding:10px}}
