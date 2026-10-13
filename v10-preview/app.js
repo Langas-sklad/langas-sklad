@@ -700,6 +700,18 @@ function initFreeOptimizer(){
  systemSelect.onchange=updateProfiles;ps.onchange=update;$("#freeColor").onchange=updateLengths;updateProfiles();
  const render=()=>{$("#freeCutsList").innerHTML='<h3>Požadované rezy</h3>'+(freeCuts.length?'<table><tr><th>Profil</th><th>Farba</th><th>Dĺžka</th><th>Ks</th></tr>'+freeCuts.map(x=>'<tr><td>'+safe(x.profile)+'</td><td>'+safe(x.color)+'</td><td>'+x.length+' mm</td><td>'+x.qty+'</td></tr>').join("")+'</table>':'<p class="muted">Zatiaľ nie sú zadané rezy.</p>')};
  $("#freeAdd").onclick=()=>{const length=Number($("#freeCut").value),qty=Number($("#freeQty").value);if(!Number.isFinite(length)||length<=0||!Number.isInteger(qty)||qty<1||qty>2000)return alert("Skontroluj dĺžku a počet kusov (max. 2000).");freeCuts.push({profile:ps.value,color:$("#freeColor").value,length,qty});render()};
+ function exportFreeOptimization(asPdf){
+  const result=$("#freeResult");
+  if(!result.querySelector("table"))return alert("Najprv spusti optimalizáciu.");
+  const title=$("#freeJob").value.trim()||"Neoznačená zákazka";
+  const win=window.open("","_blank");if(!win)return alert("Povoľ otváranie okien pre tlač.");
+  const styles='@page{size:A4 landscape;margin:12mm}body{font:11px Arial,sans-serif;color:#17324f}h1{font-size:21px;color:#153e71}h2{font-size:16px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #d5e0eb;padding:6px;vertical-align:top}th{background:#e8f2ff}tr{break-inside:avoid}small{font-size:10px}.note{color:#64748b}';
+  const meta='<h1>LANGAS · Optimalizácia rezania</h1><p><b>Zákazka:</b> '+safe(title)+' · <b>Dátum:</b> '+new Date().toLocaleString("sk-SK")+'</p><p>Výstup: A4 na šírku · '+(asPdf?"Uložiť ako PDF":"Tlač")+'</p>';
+  win.document.open();win.document.write('<!doctype html><html lang="sk"><head><meta charset="utf-8"><title>LANGAS - '+safe(title)+'</title><style>'+styles+'</style></head><body>'+meta+result.innerHTML+'<p class="note">Testovací plán. Skladové zásoby sa nemenia.</p></body></html>');win.document.close();
+  win.onload=()=>win.print();
+ }
+ $("#freePrint").onclick=()=>exportFreeOptimization(false);
+ $("#freePdf").onclick=()=>{alert("V nasledujúcom okne zvoľ tlačiareň „Uložiť ako PDF“ (Microsoft Print to PDF). Formát je A4 na šírku.");exportFreeOptimization(true)};
  $("#freeClear").onclick=()=>{freeCuts.length=0;$("#freeResult").innerHTML="";render()};
  $("#freeRun").onclick=()=>{
   if(!freeCuts.length)return alert("Najprv pridaj rezy.");
