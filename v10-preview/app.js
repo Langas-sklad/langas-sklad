@@ -501,7 +501,33 @@ function packFrameOptimized(cuts,candidates,kerf){
  scenarios.sort((a,b)=>{const aa=score(a),bb=score(b);for(let i=0;i<aa.length;i++)if(aa[i]!==bb[i])return aa[i]-bb[i];return 0});
  return scenarios[0];
 }
+function packFrameExactTwo(cuts,candidates,kerf){
+ const types=[...new Set(cuts)].sort((a,b)=>b-a);
+ const lengths=[...new Set(candidates.filter(x=>x.qty>0).map(x=>x.length))];
+ if(types.length!==2||lengths.length!==1||cuts.length>700)return null;
+ const length=lengths[0],a=cuts.filter(x=>x===types[0]).length,b=cuts.length-a;
+ const maxBars=candidates.reduce((s,x)=>s+x.qty,0);
+ const patterns=[];
+ for(let x=0;x<=Math.min(a,Math.floor(length/(types[0]+kerf)));x++)
+ for(let y=0;y<=Math.min(b,Math.floor((length-x*(types[0]+kerf))/(types[1]+kerf)));y++)
+ if(x+y)patterns.push([x,y]);
+ if((a+1)*(b+1)*patterns.length>6500000)return null;
+ const stride=b+1,dist=new Int16Array((a+1)*stride).fill(32767),prev=new Int16Array(dist.length).fill(-1);
+ dist[0]=0;
+ for(let i=0;i<=a;i++)for(let j=0;j<=b;j++){
+  const pos=i*stride+j;if(dist[pos]===32767||dist[pos]>=maxBars)continue;
+  for(let k=0;k<patterns.length;k++){const [x,y]=patterns[k],ni=i+x,nj=j+y;if(ni>a||nj>b)continue;
+   const at=ni*stride+nj;if(dist[pos]+1<dist[at]){dist[at]=dist[pos]+1;prev[at]=k}}
+ }
+ if(dist[a*stride+b]===32767)return null;
+ const bars=[];let i=a,j=b;
+ while(i||j){const k=prev[i*stride+j];if(k<0)return null;const [x,y]=patterns[k];bars.push({code:candidates[0].code,length,free:length-x*(types[0]+kerf)-y*(types[1]+kerf),cuts:[...Array(x).fill(types[0]),...Array(y).fill(types[1])],color:candidates[0].color});i-=x;j-=y}
+ const used=bars.length*length,parts=cuts.reduce((s,x)=>s+x,0),saw=cuts.length*kerf;
+ const reusable=bars.reduce((s,x)=>s+(x.free>=200?x.free:0),0);
+ return {bars,missing:[],used,parts,saw,reusable,scrap:used-parts-reusable,yield:100*parts/used,recovery:100*(parts+reusable)/used,method:"Presné minimum počtu tyčí – dva rozmery, jedna vstupná dĺžka"};
+}
 function packFrameDeep(cuts,candidates,kerf){
+ const exact=packFrameExactTwo(cuts,candidates,kerf);if(exact)return exact;
  const baseline=packFrameOptimized(cuts,candidates,kerf);
  let best=baseline;
  const score=p=>[p.missing.length,p.used,p.scrap];
@@ -749,7 +775,7 @@ function initFreeOptimizer(){
    const detail='<div class="cutDetail"><h4>'+safe(g.profile)+' · '+safe(g.color)+' – rozpis jednotlivých tyčí</h4><table class="cutMatrix">'+head+body+'</table></div>';
    return '<tr><td>'+safe(g.profile)+' · '+safe(g.color)+'</td><td>'+plan.bars.length+'</td><td>'+plan.yield.toFixed(1)+' %</td><td>'+Math.round(plan.reusable)+' mm</td><td>'+Math.round(plan.scrap)+' mm</td><td>'+plan.missing.length+'</td></tr><tr class="detailRow"><td colspan="6">'+detail+'</td></tr>';
   }).join("");
-  $("#freeResult").innerHTML='<h3>Výsledok optimalizácie</h3><p>Rýchly plán: '+fastTotal+' tyčí · Zvolený plán: '+finalTotal+' tyčí · Rozdiel: '+(fastTotal-finalTotal)+' tyčí. Hĺbkový režim porovnáva viac poradí, bez garancie matematického optima.</p><p><b>Vyťaženosť: '+(used?100*parts/used:0).toFixed(1)+' %</b> · Efektívne využitie: '+(used?100*(parts+reusable)/used:0).toFixed(1)+' % · Použiteľné zvyšky: '+Math.round(reusable)+' mm · Odpad: '+Math.round(scrap)+' mm · Chýbajúce rezy: '+missing+'</p><div class="scroll"><table><tr><th>Profil</th><th>Tyče</th><th>Vyťaženosť</th><th>Zvyšky</th><th>Odpad</th><th>Chýba</th></tr>'+rows+'</table></div><p class="muted">Testovacia optimalizácia, bez rezervácie a odpisu skladu. Výsledok je heuristický.</p>';
+  $("#freeResult").innerHTML='<h3>Výsledok optimalizácie</h3><p>Rýchly plán: '+fastTotal+' tyčí · Zvolený plán: '+finalTotal+' tyčí · Rozdiel: '+(fastTotal-finalTotal)+' tyčí. Pri dvoch rozmeroch a jednej skladovej dĺžke sa počíta presné minimum počtu tyčí; ostatné prípady používajú heuristiku.</p><p><b>Vyťaženosť: '+(used?100*parts/used:0).toFixed(1)+' %</b> · Efektívne využitie: '+(used?100*(parts+reusable)/used:0).toFixed(1)+' % · Použiteľné zvyšky: '+Math.round(reusable)+' mm · Odpad: '+Math.round(scrap)+' mm · Chýbajúce rezy: '+missing+'</p><div class="scroll"><table><tr><th>Profil</th><th>Tyče</th><th>Vyťaženosť</th><th>Zvyšky</th><th>Odpad</th><th>Chýba</th></tr>'+rows+'</table></div><p class="muted">Testovacia optimalizácia, bez rezervácie a odpisu skladu. Výsledok je heuristický.</p>';
  };
  render();
 }
