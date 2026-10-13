@@ -673,17 +673,31 @@ const qrInput=document.querySelector("#v7QrInput");if(qrInput)document.querySele
 const freeCuts=[];
 function freeProfiles(){return [...new Map(P.filter(x=>x.profileCode).map(x=>[x.profileCode,x.name])).entries()]}
 function initFreeOptimizer(){
- const ps=$("#freeProfile");ps.innerHTML=freeProfiles().map(([code,name])=>'<option value="'+code+'">'+safe(code+" · "+name)+'</option>').join("");
+ const ps=$("#freeProfile"),systemSelect=$("#freeSystem");
+ const systems=[...new Set(P.flatMap(x=>x.systems||[x.system]).filter(Boolean))];
+ const preferred=["Rámové zasklenie","Bezrámové zasklenie","Bezrámové posuvno-otočné","Pergola","Zábradlia"];
+ systems.sort((a,b)=>{const ai=preferred.indexOf(a),bi=preferred.indexOf(b);return (ai<0?999:ai)-(bi<0?999:bi)||a.localeCompare(b,"sk")});
+ systemSelect.innerHTML=systems.map(v=>'<option value="'+safe(v)+'">'+safe(v)+'</option>').join("");
+ const updateProfiles=()=>{
+  const selected=systemSelect.value;
+  const items=P.filter(x=>(x.systems||[x.system]).includes(selected));
+  const unique=new Map(items.map(x=>[x.profileCode||x.code,{code:x.profileCode||x.code,name:x.name}]));
+  const prev=ps.value;
+  ps.innerHTML=[...unique.values()].sort((a,b)=>a.code.localeCompare(b.code,"sk")).map(x=>'<option value="'+safe(x.code)+'">'+safe(x.code+" · "+x.name)+'</option>').join("");
+  if(unique.has(prev))ps.value=prev;
+  update();
+ };
+ 
  const update=()=>{
-  const code=ps.value,colors=[...new Set(P.filter(x=>x.profileCode===code).map(x=>x.color))];
+  const code=ps.value,colors=[...new Set(P.filter(x=>(x.profileCode||x.code)===code).map(x=>x.color))];
   const old=$("#freeColor").value;$("#freeColor").innerHTML=colors.map(v=>'<option>'+safe(v)+'</option>').join("");if(colors.includes(old))$("#freeColor").value=old;
   updateLengths();
  };
  const updateLengths=()=>{
-  const stock=P.filter(x=>x.profileCode===ps.value&&x.color===$("#freeColor").value);
+  const stock=P.filter(x=>(x.profileCode||x.code)===ps.value&&x.color===$("#freeColor").value);
   $("#freeBar").innerHTML=[...new Set(stock.map(x=>x.length))].sort((a,b)=>a-b).map(n=>'<option value="'+n+'">'+n+' mm</option>').join("");
  };
- ps.onchange=update;$("#freeColor").onchange=updateLengths;update();
+ systemSelect.onchange=updateProfiles;ps.onchange=update;$("#freeColor").onchange=updateLengths;updateProfiles();
  const render=()=>{$("#freeCutsList").innerHTML='<h3>Požadované rezy</h3>'+(freeCuts.length?'<table><tr><th>Profil</th><th>Farba</th><th>Dĺžka</th><th>Ks</th></tr>'+freeCuts.map(x=>'<tr><td>'+safe(x.profile)+'</td><td>'+safe(x.color)+'</td><td>'+x.length+' mm</td><td>'+x.qty+'</td></tr>').join("")+'</table>':'<p class="muted">Zatiaľ nie sú zadané rezy.</p>')};
  $("#freeAdd").onclick=()=>{const length=Number($("#freeCut").value),qty=Number($("#freeQty").value);if(!Number.isFinite(length)||length<=0||!Number.isInteger(qty)||qty<1||qty>2000)return alert("Skontroluj dĺžku a počet kusov (max. 2000).");freeCuts.push({profile:ps.value,color:$("#freeColor").value,length,qty});render()};
  $("#freeClear").onclick=()=>{freeCuts.length=0;$("#freeResult").innerHTML="";render()};
@@ -693,7 +707,7 @@ function initFreeOptimizer(){
   const groups=new Map();for(const x of freeCuts){const key=x.profile+"|"+x.color,g=groups.get(key)||{profile:x.profile,color:x.color,cuts:[]};for(let j=0;j<x.qty;j++)g.cuts.push(x.length);groups.set(key,g)}
   let used=0,parts=0,reusable=0,scrap=0,missing=0;
   const rows=[...groups.values()].map(g=>{
-   let candidates=P.filter(x=>x.profileCode===g.profile&&x.color===g.color).map(x=>({code:x.code,length:Number(x.length),qty:Math.max(0,x.qty-reservedFor(x.code)),color:x.color})).filter(x=>x.qty>0);
+   let candidates=P.filter(x=>(x.profileCode||x.code)===g.profile&&x.color===g.color).map(x=>({code:x.code,length:Number(x.length),qty:Math.max(0,x.qty-reservedFor(x.code)),color:x.color})).filter(x=>x.qty>0);
    if($("#freeMode").value==="custom"){const selected=Number($("#freeBar").value);if(g.profile===ps.value&&g.color===$("#freeColor").value)candidates=candidates.filter(x=>x.length===selected)}
    const plan=packFrameOptimized(g.cuts,candidates,kerf);used+=plan.used;parts+=plan.parts;reusable+=plan.reusable;scrap+=plan.scrap;missing+=plan.missing.length;
    const detail=plan.bars.map((b,i)=>'<div>Tyč '+(i+1)+' · '+b.length+' mm → '+b.cuts.join(" + ")+' mm · zvyšok '+Math.round(b.free*10)/10+' mm</div>').join("");
