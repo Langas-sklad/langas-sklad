@@ -501,6 +501,27 @@ function packFrameOptimized(cuts,candidates,kerf){
  scenarios.sort((a,b)=>{const aa=score(a),bb=score(b);for(let i=0;i<aa.length;i++)if(aa[i]!==bb[i])return aa[i]-bb[i];return 0});
  return scenarios[0];
 }
+function packFrameDeep(cuts,candidates,kerf){
+ const baseline=packFrameOptimized(cuts,candidates,kerf);
+ let best=baseline;
+ const score=p=>[p.missing.length,p.used,p.scrap];
+ const better=(a,b)=>{const x=score(a),y=score(b);for(let i=0;i<x.length;i++)if(x[i]!==y[i])return x[i]<y[i];return false};
+ const start=Date.now();
+ for(let trial=0;trial<120&&Date.now()-start<1000;trial++){
+  const order=[...cuts].sort((a,b)=>trial%3===0?b-a:trial%3===1?a-b:(Math.sin(a*13+trial*71)-Math.sin(b*13+trial*71)));
+  const pool=candidates.map(x=>({...x})),bars=[],missing=[];
+  for(const cut of order){
+   let b=bars.filter(x=>x.free>=cut+kerf).sort((x,y)=>x.free-y.free)[0];
+   if(!b){const options=pool.filter(x=>x.qty>0&&x.length>=cut+kerf).sort((x,y)=>x.length-y.length);const x=options[trial%5===0?Math.min(1,options.length-1):0];if(!x){missing.push(cut);continue}x.qty--;b={code:x.code,length:x.length,free:x.length,cuts:[],color:x.color};bars.push(b)}
+   b.cuts.push(cut);b.free-=cut+kerf;
+  }
+  const used=bars.reduce((s,b)=>s+b.length,0),parts=bars.reduce((s,b)=>s+b.cuts.reduce((t,n)=>t+n,0),0);
+  const saw=bars.reduce((s,b)=>s+b.cuts.length*kerf,0),reusable=bars.reduce((s,b)=>s+(b.free>=200?b.free:0),0);
+  const p={bars,missing,used,parts,saw,reusable,scrap:used-parts-reusable,yield:used?100*parts/used:0,recovery:used?100*(parts+reusable)/used:0};
+  if(better(p,best))best=p;
+ }
+ return best;
+}
 function openFrameOptimizer(i){
  const o=submittedOrders[i];if(!o||o.stage<1)return alert("Najprv potvrď objednávku.");
  let req;try{req=frameRequirements(o)}catch(e){return alert(e.message)}
@@ -717,15 +738,15 @@ function initFreeOptimizer(){
   if(!freeCuts.length)return alert("Najprv pridaj rezy.");
   const kerf=Number($("#freeKerf").value);if(!Number.isFinite(kerf)||kerf<0||kerf>20)return alert("Neplatná šírka rezu.");
   const groups=new Map();for(const x of freeCuts){const key=x.profile+"|"+x.color,g=groups.get(key)||{profile:x.profile,color:x.color,cuts:[]};for(let j=0;j<x.qty;j++)g.cuts.push(x.length);groups.set(key,g)}
-  let used=0,parts=0,reusable=0,scrap=0,missing=0;
+  let used=0,parts=0,reusable=0,scrap=0,missing=0,fastTotal=0,finalTotal=0;
   const rows=[...groups.values()].map(g=>{
    let candidates=P.filter(x=>(x.profileCode||x.code)===g.profile&&x.color===g.color).map(x=>({code:x.code,length:Number(x.length),qty:Math.max(0,x.qty-reservedFor(x.code)),color:x.color})).filter(x=>x.qty>0);
    if($("#freeMode").value==="custom"){const selected=Number($("#freeBar").value);if(g.profile===ps.value&&g.color===$("#freeColor").value)candidates=candidates.filter(x=>x.length===selected)}
-   const plan=packFrameOptimized(g.cuts,candidates,kerf);used+=plan.used;parts+=plan.parts;reusable+=plan.reusable;scrap+=plan.scrap;missing+=plan.missing.length;
+   const fast=packFrameOptimized(g.cuts,candidates,kerf);const plan=$("#freeDepth").value==="deep"?packFrameDeep(g.cuts,candidates,kerf):fast;fastTotal+=fast.bars.length;finalTotal+=plan.bars.length;used+=plan.used;parts+=plan.parts;reusable+=plan.reusable;scrap+=plan.scrap;missing+=plan.missing.length;
    const detail=plan.bars.map((b,i)=>'<div>Tyč '+(i+1)+' · '+b.length+' mm → '+b.cuts.join(" + ")+' mm · zvyšok '+Math.round(b.free*10)/10+' mm</div>').join("");
    return '<tr><td>'+safe(g.profile)+' · '+safe(g.color)+'</td><td>'+plan.bars.length+'</td><td>'+plan.yield.toFixed(1)+' %</td><td>'+Math.round(plan.reusable)+' mm</td><td>'+Math.round(plan.scrap)+' mm</td><td>'+plan.missing.length+'</td></tr><tr><td colspan="6">'+detail+'</td></tr>';
   }).join("");
-  $("#freeResult").innerHTML='<h3>Výsledok optimalizácie</h3><p><b>Vyťaženosť: '+(used?100*parts/used:0).toFixed(1)+' %</b> · Efektívne využitie: '+(used?100*(parts+reusable)/used:0).toFixed(1)+' % · Použiteľné zvyšky: '+Math.round(reusable)+' mm · Odpad: '+Math.round(scrap)+' mm · Chýbajúce rezy: '+missing+'</p><div class="scroll"><table><tr><th>Profil</th><th>Tyče</th><th>Vyťaženosť</th><th>Zvyšky</th><th>Odpad</th><th>Chýba</th></tr>'+rows+'</table></div><p class="muted">Testovacia optimalizácia, bez rezervácie a odpisu skladu. Výsledok je heuristický.</p>';
+  $("#freeResult").innerHTML='<h3>Výsledok optimalizácie</h3><p>Rýchly plán: '+fastTotal+' tyčí · Zvolený plán: '+finalTotal+' tyčí · Rozdiel: '+(fastTotal-finalTotal)+' tyčí. Hĺbkový režim porovnáva viac poradí, bez garancie matematického optima.</p><p><b>Vyťaženosť: '+(used?100*parts/used:0).toFixed(1)+' %</b> · Efektívne využitie: '+(used?100*(parts+reusable)/used:0).toFixed(1)+' % · Použiteľné zvyšky: '+Math.round(reusable)+' mm · Odpad: '+Math.round(scrap)+' mm · Chýbajúce rezy: '+missing+'</p><div class="scroll"><table><tr><th>Profil</th><th>Tyče</th><th>Vyťaženosť</th><th>Zvyšky</th><th>Odpad</th><th>Chýba</th></tr>'+rows+'</table></div><p class="muted">Testovacia optimalizácia, bez rezervácie a odpisu skladu. Výsledok je heuristický.</p>';
  };
  render();
 }
