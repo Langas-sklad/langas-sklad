@@ -745,8 +745,32 @@ function initFreeOptimizer(){
   $("#freeBar").innerHTML=[...new Set(stock.map(x=>x.length))].sort((a,b)=>a-b).map(n=>'<option value="'+n+'">'+n+' mm</option>').join("");
  };
  systemSelect.onchange=updateProfiles;ps.onchange=update;$("#freeColor").onchange=updateLengths;updateProfiles();
- const render=()=>{$("#freeCutsList").innerHTML='<h3>Požadované rezy</h3>'+(freeCuts.length?'<table><tr><th>Profil</th><th>Farba</th><th>Dĺžka</th><th>Ks</th></tr>'+freeCuts.map(x=>'<tr><td>'+safe(x.profile)+'</td><td>'+safe(x.color)+'</td><td>'+x.length+' mm</td><td>'+x.qty+'</td></tr>').join("")+'</table>':'<p class="muted">Zatiaľ nie sú zadané rezy.</p>')};
- $("#freeAdd").onclick=()=>{const length=Number($("#freeCut").value),qty=Number($("#freeQty").value);if(!Number.isFinite(length)||length<=0||!Number.isInteger(qty)||qty<1||qty>2000)return alert("Skontroluj dĺžku a počet kusov (max. 2000).");freeCuts.push({profile:ps.value,color:$("#freeColor").value,length,qty});render()};
+ let editIndex=-1;
+ const invalidate=()=>{$("#freeResult").innerHTML="";};
+ const render=()=>{
+  $("#freeCutsList").innerHTML='<h3>Požadované rezy</h3>'+(freeCuts.length?'<div class="scroll"><table><tr><th>Profil</th><th>Farba</th><th>Dĺžka</th><th>Ks</th><th>Možnosti</th></tr>'+freeCuts.map((x,i)=>'<tr><td>'+safe(x.profile)+'</td><td>'+safe(x.color)+'</td><td>'+x.length+' mm</td><td>'+x.qty+'</td><td><button type="button" class="freeEdit" data-index="'+i+'">Upraviť</button> <button type="button" class="freeDelete gray" data-index="'+i+'">Vymazať</button></td></tr>').join("")+'</table></div>':'<p class="muted">Zatiaľ nie sú zadané rezy.</p>');
+  $("#freeCutsList").querySelectorAll(".freeEdit").forEach(b=>b.onclick=()=>{
+   const i=Number(b.dataset.index),x=freeCuts[i];if(!x)return;
+   const entry=P.find(p=>(p.profileCode||p.code)===x.profile&&p.color===x.color);
+   if(entry){const category=(entry.systems||[entry.system])[0];if([...systemSelect.options].some(o=>o.value===category))systemSelect.value=category;updateProfiles();ps.value=x.profile;update();$("#freeColor").value=x.color;updateLengths()}
+   $("#freeCut").value=x.length;$("#freeQty").value=x.qty;editIndex=i;
+   $("#freeAdd").textContent="Uložiť zmeny";$("#freeCancelEdit").hidden=false;
+   $("#freeCut").focus();
+  });
+  $("#freeCutsList").querySelectorAll(".freeDelete").forEach(b=>b.onclick=()=>{
+   const i=Number(b.dataset.index);if(!freeCuts[i]||!confirm("Vymazať tento rez?"))return;
+   freeCuts.splice(i,1);resetEdit();invalidate();render();
+  });
+ };
+ const resetEdit=()=>{editIndex=-1;$("#freeAdd").textContent="Pridať rezy";$("#freeCancelEdit").hidden=true};
+ $("#freeCancelEdit").onclick=resetEdit;
+ $("#freeAdd").onclick=()=>{
+  const length=Number($("#freeCut").value),qty=Number($("#freeQty").value);
+  if(!ps.value||!$("#freeColor").value||!Number.isFinite(length)||length<=0||!Number.isInteger(qty)||qty<1||qty>2000)return alert("Skontroluj profil, farbu, dĺžku a počet kusov (max. 2000).");
+  const entry={profile:ps.value,color:$("#freeColor").value,length,qty};
+  if(editIndex>=0)freeCuts[editIndex]=entry;else freeCuts.push(entry);
+  resetEdit();invalidate();render();
+ };
  function exportFreeOptimization(asPdf){
   const result=$("#freeResult");
   if(!result.querySelector("table"))return alert("Najprv spusti optimalizáciu.");
@@ -759,7 +783,7 @@ function initFreeOptimizer(){
  }
  $("#freePrint").onclick=()=>exportFreeOptimization(false);
  $("#freePdf").onclick=()=>{alert("V nasledujúcom okne zvoľ tlačiareň „Uložiť ako PDF“ (Microsoft Print to PDF). Formát je A4 na šírku.");exportFreeOptimization(true)};
- $("#freeClear").onclick=()=>{freeCuts.length=0;$("#freeResult").innerHTML="";render()};
+ $("#freeClear").onclick=()=>{resetEdit();freeCuts.length=0;$("#freeResult").innerHTML="";render()};
  $("#freeRun").onclick=()=>{
   if(!freeCuts.length)return alert("Najprv pridaj rezy.");
   const kerf=Number($("#freeKerf").value);if(!Number.isFinite(kerf)||kerf<0||kerf>20)return alert("Neplatná šírka rezu.");
