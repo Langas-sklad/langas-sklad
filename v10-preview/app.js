@@ -234,6 +234,31 @@ function checkMarkizyWarehouse(){
  const el=$("#markizyStockResult");
  el.innerHTML='<div class="note"><b>Kontrola profilov: '+good+'/4 typov dostupných.</b> Výpočet používa celé tyče, rezervácie a rez 5 mm; odrezky zobrazuje informatívne, nezapočítava ich do návrhu rezania.</div><div class="scroll"><table><tr><th>Kód</th><th>Profil</th><th>Požadované rezy</th><th>Sklad</th><th>Výsledok</th></tr>'+rows+'</table></div><p class="muted">Pozor: W.6033.PS z výrobného listu nie je totožný s W.6033.EL na sklade. Žlto označené alternatívy sú návrh na použitie, nie automaticky schválená náhrada. Sklo, kovanie a tesnenia nie sú overené. Bez odpisu a rezervácie.</p>';
 }
+function renderMarkizyCutting(){
+ const tasks=[
+  {code:"W.6033.00.00.PS.650.28",cuts:[2630,1710]},
+  {code:"W.6043.00.00.PS.650.28",cuts:[2630,1710]},
+  {code:"W.6013.00.00.PS.650.28",cuts:[2480,2480,2480,2480]},
+  {code:"W.6010.00.00.PS.650.28",cuts:[857,857,857,550.3,550.3,550.3]}
+ ];
+ const kerf=5;let shortage=0,substitutions=0;
+ const sections=tasks.map(t=>{
+  const exact=P.filter(x=>(x.profileCode||x.code)===t.code&&x.color==="Surová"&&x.qty-reservedFor(x.code)>0);
+  const asCandidates=arr=>arr.map(x=>({code:x.code,length:Number(x.length),qty:Math.max(0,x.qty-reservedFor(x.code)),color:x.color}));
+  const primary=packFrameOptimized(t.cuts,asCandidates(exact),kerf);
+  const alternatives=profileAlternatives(t.code,"Surová").filter(x=>/ELOX|EL[.]|EL$|elox/i.test(x.color+" "+(x.profileCode||x.code)));
+  const fallback=primary.missing.length&&alternatives.length?packFrameOptimized(primary.missing,asCandidates(alternatives),kerf):null;
+  const remaining=fallback?fallback.missing.length:primary.missing.length;shortage+=remaining;
+  if(fallback&&fallback.bars.length)substitutions+=fallback.bars.length;
+  const all=[...primary.bars.map(b=>({b,alt:false})),...(fallback?fallback.bars.map(b=>({b,alt:true})):[])];
+  const max=Math.max(1,...all.map(x=>x.b.cuts.length));
+  const head='<tr><th>Tyč</th><th>Profil / povrch</th><th>Vstup</th>'+Array.from({length:max},(_,i)=>'<th>Rez '+(i+1)+'</th>').join("")+'<th>Zvyšok</th></tr>';
+  const rows=all.map(({b,alt},i)=>'<tr'+(alt?' style="background:#fff2a8;color:#604600"':'')+'><td>'+(i+1)+'</td><td>'+safe(profileDisplay(alt?(P.find(x=>x.code===b.code)?.profileCode||b.code):t.code))+' · '+safe(b.color)+(alt?' · ALTERNATÍVA – overiť':'')+'</td><td>'+b.length+' mm</td>'+Array.from({length:max},(_,j)=>'<td>'+(b.cuts[j]===undefined?'–':b.cuts[j].toLocaleString("sk-SK"))+'</td>').join("")+'<td>'+b.free.toLocaleString("sk-SK",{maximumFractionDigits:1})+' mm</td></tr>').join("");
+  return '<h4>'+safe(profileDisplay(t.code))+'</h4><p>Požadované rezy: '+t.cuts.join(" + ")+' mm · '+(remaining?'Chýba '+remaining+' rezov':'Predbežne pokryté')+'</p><div class="scroll"><table>'+head+rows+'</table></div>';
+ }).join("");
+ $("#markizyCutResult").innerHTML='<h3>Markízy · Návrh rezania</h3><p><b>Navrhnuté eloxované tyče: '+substitutions+'</b> · Nepokryté rezy: '+shortage+'</p><p style="background:#fff2a8;color:#604600;padding:8px">Žlté riadky = návrh použitia iného vyhotovenia (EL / elox). Pred rezaním musí pracovník potvrdiť technickú zameniteľnosť. Materiál nie je rezervovaný ani odpísaný.</p>'+sections;
+}
+$("#cutMarkizy").onclick=renderMarkizyCutting;
 $("#checkMarkizy").onclick=checkMarkizyWarehouse;
 $("#checkDubnica").onclick=renderDubnica;
 $("#reserveDubnica").onclick=()=>{
