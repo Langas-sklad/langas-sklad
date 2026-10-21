@@ -883,12 +883,27 @@ function initFreeOptimizer(){
   const rows=[...groups.values()].map(g=>{
    let candidates=P.filter(x=>(x.profileCode||x.code)===g.profile&&x.color===g.color).map(x=>({code:x.code,length:Number(x.length),qty:Math.max(0,x.qty-reservedFor(x.code)),color:x.color})).filter(x=>x.qty>0);
    if($("#freeMode").value==="custom"){const selected=Number($("#freeBar").value);if(g.profile===ps.value&&g.color===$("#freeColor").value)candidates=candidates.filter(x=>x.length===selected)}
-   const fast=packFrameOptimized(g.cuts,candidates,kerf);const plan=$("#freeDepth").value==="deep"?packFrameDeep(g.cuts,candidates,kerf):fast;methods.push({profile:g.profile,color:g.color,method:chosenDepth==="fast"?"Rýchla heuristika":(plan.method||"Hĺbková heuristika – optimum nepotvrdené")});fastTotal+=fast.bars.length;finalTotal+=plan.bars.length;used+=plan.used;parts+=plan.parts;reusable+=plan.reusable;scrap+=plan.scrap;missing+=plan.missing.length;
-   const altNotice=plan.missing.length?alternativeLabel(g.profile,g.color):"";const maxCuts=Math.max(1,...plan.bars.map(b=>b.cuts.length));
-   const head='<tr><th>Tyč</th><th>Vstup (mm)</th>'+Array.from({length:maxCuts},(_,i)=>'<th>Rez '+(i+1)+'</th>').join("")+'<th>Zvyšok (mm)</th></tr>';
-   const body=plan.bars.map((b,i)=>'<tr><td><b>'+(i+1)+'</b></td><td>'+b.length+'</td>'+Array.from({length:maxCuts},(_,j)=>'<td>'+(b.cuts[j]===undefined?'–':b.cuts[j].toLocaleString("sk-SK",{maximumFractionDigits:1}))+'</td>').join("")+'<td><b>'+b.free.toLocaleString("sk-SK",{maximumFractionDigits:1})+'</b></td></tr>').join("");
+   const calculate=cuts=>($("#freeDepth").value==="deep"?packFrameDeep:packFrameOptimized)(cuts,candidates,kerf);
+   const fast=packFrameOptimized(g.cuts,candidates,kerf);
+   const primary=calculate(g.cuts);
+   const alternatives=primary.missing.length?profileAlternatives(g.profile,g.color).filter(x=>/ELOX|EL[.]|EL$|elox/i.test(x.color+" "+(x.profileCode||x.code))):[];
+   const altStock=alternatives.map(x=>({code:x.code,length:Number(x.length),qty:Math.max(0,x.qty-reservedFor(x.code)),color:x.color}));
+   const fallback=alternatives.length?($("#freeDepth").value==="deep"?packFrameDeep:packFrameOptimized)(primary.missing,altStock,kerf):null;
+   const missingCuts=fallback?fallback.missing.length:primary.missing.length;
+   const usedBars=[...primary.bars.map(b=>({b,alt:false})),...(fallback?fallback.bars.map(b=>({b,alt:true})):[])];
+   const planUsed=primary.used+(fallback?.used||0),planParts=primary.parts+(fallback?.parts||0),planReusable=primary.reusable+(fallback?.reusable||0),planScrap=primary.scrap+(fallback?.scrap||0);
+   methods.push({profile:g.profile,color:g.color,method:chosenDepth==="fast"?"Rýchla heuristika":(primary.method||"Hĺbková heuristika – optimum nepotvrdené")});
+   fastTotal+=fast.bars.length;finalTotal+=usedBars.length;used+=planUsed;parts+=planParts;reusable+=planReusable;scrap+=planScrap;missing+=missingCuts;
+   const maxCuts=Math.max(1,...usedBars.map(x=>x.b.cuts.length));
+   const head='<tr><th>Tyč</th><th>Profil / povrch</th><th>Vstup (mm)</th>'+Array.from({length:maxCuts},(_,i)=>'<th>Rez '+(i+1)+'</th>').join("")+'<th>Zvyšok (mm)</th></tr>';
+   const body=usedBars.map(({b,alt},i)=>{
+    const cell=alt?' style="background-color:#fff2a8!important;color:#604600!important"':'';
+    const actual=P.find(x=>x.code===b.code);
+    return '<tr><td'+cell+'><b>'+(i+1)+'</b></td><td'+cell+'>'+safe(profileDisplay(actual?.profileCode||g.profile))+' · '+safe(b.color)+(alt?' · ALTERNATÍVA (overiť)':'')+'</td><td'+cell+'>'+b.length+'</td>'+Array.from({length:maxCuts},(_,j)=>'<td'+cell+'>'+(b.cuts[j]===undefined?'–':b.cuts[j].toLocaleString("sk-SK",{maximumFractionDigits:1}))+'</td>').join("")+'<td'+cell+'><b>'+b.free.toLocaleString("sk-SK",{maximumFractionDigits:1})+'</b></td></tr>';
+   }).join("");
    const detail='<div class="cutDetail"><h4>'+safe(profileDisplay(g.profile))+' · '+safe(g.color)+' – rozpis jednotlivých tyčí</h4><table class="cutMatrix">'+head+body+'</table></div>';
-   return '<tr><td>'+safe(g.profile)+' · '+safe(g.color)+'</td><td>'+plan.bars.length+'</td><td>'+plan.yield.toFixed(1)+' %</td><td>'+Math.round(plan.reusable)+' mm</td><td>'+Math.round(plan.scrap)+' mm</td><td>'+plan.missing.length+'</td></tr><tr class="detailRow"><td colspan="6">'+detail+'</td></tr>';
+   const altNote=usedBars.some(x=>x.alt)?'<p style="background:#fff2a8;color:#604600;padding:7px">Žlté riadky: eloxovaná alternatíva. Pred použitím potvrdiť zameniteľnosť.</p>':'';
+   return '<tr><td>'+safe(profileDisplay(g.profile))+' · '+safe(g.color)+'</td><td>'+usedBars.length+'</td><td>'+(planUsed?100*planParts/planUsed:0).toFixed(1)+' %</td><td>'+Math.round(planReusable)+' mm</td><td>'+Math.round(planScrap)+' mm</td><td>'+missingCuts+'</td></tr><tr class="detailRow"><td colspan="6">'+altNote+detail+'</td></tr>';
   }).join("");
   $("#freeResult").innerHTML='<h3>Výsledok optimalizácie</h3><p>Rýchly plán: '+fastTotal+' tyčí · Zvolený plán: '+finalTotal+' tyčí · Rozdiel: '+(fastTotal-finalTotal)+' tyčí. Použitý režim: '+(chosenDepth==="deep"?"HĹBKOVÁ OPTIMALIZÁCIA":"RÝCHLA OPTIMALIZÁCIA")+' · '+methods.map(m=>safe(profileDisplay(m.profile)+": "+m.method)).join("; ")+'.</p><p><b>Vyťaženosť: '+(used?100*parts/used:0).toFixed(1)+' %</b> · Efektívne využitie: '+(used?100*(parts+reusable)/used:0).toFixed(1)+' % · Použiteľné zvyšky: '+Math.round(reusable)+' mm · Odpad: '+Math.round(scrap)+' mm · Chýbajúce rezy: '+missing+'</p><div class="scroll"><table><tr><th>Profil</th><th>Tyče</th><th>Vyťaženosť</th><th>Zvyšky</th><th>Odpad</th><th>Chýba</th></tr>'+rows+'</table></div><p class="muted">Testovací výpočet bez rezervácie a odpisu skladu. Presné optimum je potvrdené iba tam, kde je výslovne uvedená presná metóda.</p>';
  };
