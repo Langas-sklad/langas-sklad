@@ -253,7 +253,10 @@ function renderMarkizyCutting(){
   const all=[...primary.bars.map(b=>({b,alt:false})),...(fallback?fallback.bars.map(b=>({b,alt:true})):[])];
   const max=Math.max(1,...all.map(x=>x.b.cuts.length));
   const head='<tr><th>Tyč</th><th>Profil / povrch</th><th>Vstup</th>'+Array.from({length:max},(_,i)=>'<th>Rez '+(i+1)+'</th>').join("")+'<th>Zvyšok</th></tr>';
-  const rows=all.map(({b,alt},i)=>'<tr'+(alt?' style="background:#fff2a8;color:#604600"':'')+'><td>'+(i+1)+'</td><td>'+safe(profileDisplay(alt?(P.find(x=>x.code===b.code)?.profileCode||b.code):t.code))+' · '+safe(b.color)+(alt?' · ALTERNATÍVA – overiť':'')+'</td><td>'+b.length+' mm</td>'+Array.from({length:max},(_,j)=>'<td>'+(b.cuts[j]===undefined?'–':b.cuts[j].toLocaleString("sk-SK"))+'</td>').join("")+'<td>'+b.free.toLocaleString("sk-SK",{maximumFractionDigits:1})+' mm</td></tr>').join("");
+  const rows=all.map(({b,alt},i)=>{
+   const td=alt?' style="background-color:#fff2a8!important;color:#604600!important"':'';
+   return '<tr class="'+(alt?'altMaterial':'')+'"><td'+td+'>'+(i+1)+'</td><td'+td+'>'+safe(profileDisplay(alt?(P.find(x=>x.code===b.code)?.profileCode||b.code):t.code))+' · '+safe(b.color)+(alt?' · ALTERNATÍVA – overiť':'')+'</td><td'+td+'>'+b.length+' mm</td>'+Array.from({length:max},(_,j)=>'<td'+td+'>'+(b.cuts[j]===undefined?'–':b.cuts[j].toLocaleString("sk-SK"))+'</td>').join("")+'<td'+td+'>'+b.free.toLocaleString("sk-SK",{maximumFractionDigits:1})+' mm</td></tr>';
+  }).join("");
   return '<h4>'+safe(profileDisplay(t.code))+'</h4><p>Požadované rezy: '+t.cuts.join(" + ")+' mm · '+(remaining?'Chýba '+remaining+' rezov':'Predbežne pokryté')+'</p><div class="scroll"><table>'+head+rows+'</table></div>';
  }).join("");
  $("#markizyCutResult").innerHTML='<h3>Markízy · Návrh rezania</h3><p><b>Navrhnuté eloxované tyče: '+substitutions+'</b> · Nepokryté rezy: '+shortage+'</p><p style="background:#fff2a8;color:#604600;padding:8px">Žlté riadky = návrh použitia iného vyhotovenia (EL / elox). Pred rezaním musí pracovník potvrdiť technickú zameniteľnosť. Materiál nie je rezervovaný ani odpísaný.</p>'+sections;
