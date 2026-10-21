@@ -1,4 +1,9 @@
 const D=window.DATA;let P=structuredClone(D.stock),C=structuredClone(D.cuts),H=[],R=[],stockSystem="all",cutSystem="all";const $=s=>document.querySelector(s),findP=c=>P.find(x=>x.code===c||x.profileCode===c);C.forEach(x=>{let p=findP(x.code);if(p){x.system=x.system||p.system||"Nezaradené";x.systems=x.systems||p.systems||[x.system];x.color=x.color||p.color}});
+function profileName(code,fallback=""){
+ const item=P.find(x=>x.profileCode===code||x.code===code)||C.find(x=>x.code===code&&x.name);
+ return item&&item.name?item.name:(fallback||"Názov nie je v sklade");
+}
+function profileDisplay(code,fallback=""){return code+" · "+profileName(code,fallback)}
 function show(id){if(id==="shipped")renderShipped();document.querySelectorAll("main>section").forEach(x=>x.classList.add("hidden"));$("#"+id).classList.remove("hidden");document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.p===id));scrollTo(0,0)}document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>show(b.dataset.p));$("#printBtn").onclick=()=>print();
 function reservedFor(code){return R.filter(r=>r.code===code&&r.kind!=="cut").reduce((s,r)=>s+r.qty,0)}
 function reservedCutFor(id){return R.filter(r=>r.kind==="cut"&&r.cutId===id).reduce((s,r)=>s+r.qty,0)}
@@ -187,7 +192,7 @@ function dubnicaAudit(){
 }
 function renderDubnica(){
  const a=dubnicaAudit(), missing=a.filter(x=>!x.ok);
- $("#dubnicaResult").innerHTML='<div class="'+(missing.length?"warn":"note")+'"><b>'+(missing.length?"Materiál nie je kompletný.":"Materiál podľa kontroly postačuje.")+'</b></div><div class="scroll"><table><tr><th>Kód</th><th>Položka</th><th>Potrebujeme</th><th>Dostupné</th><th>Stav</th></tr>'+a.map(x=>'<tr><td>'+x.code+'</td><td>'+x.label+(x.note?'<br><span class="muted">'+x.note+'</span>':'')+'</td><td>'+x.need+' '+x.unit+'</td><td>'+x.display+'</td><td class="'+(x.ok?'ok':'bad')+'">'+(x.ok?'OK':'CHÝBA')+'</td></tr>').join('')+'</table></div>';
+ $("#dubnicaResult").innerHTML='<div class="'+(missing.length?"warn":"note")+'"><b>'+(missing.length?"Materiál nie je kompletný.":"Materiál podľa kontroly postačuje.")+'</b></div><div class="scroll"><table><tr><th>Kód</th><th>Položka</th><th>Potrebujeme</th><th>Dostupné</th><th>Stav</th></tr>'+a.map(x=>'<tr><td>'+safe(profileDisplay(x.code,x.label))+'</td><td>'+x.label+(x.note?'<br><span class="muted">'+x.note+'</span>':'')+'</td><td>'+x.need+' '+x.unit+'</td><td>'+x.display+'</td><td class="'+(x.ok?'ok':'bad')+'">'+(x.ok?'OK':'CHÝBA')+'</td></tr>').join('')+'</table></div>';
  return a;
 }
 function checkMarkizyWarehouse(){
@@ -203,7 +208,7 @@ function checkMarkizyWarehouse(){
   const plan=packFrameOptimized(r.cuts,available,5);
   const offcuts=C.filter(x=>x.code===r.code&&x.color==="Surová"&&x.status==="DOSTUPNÝ");
   if(!plan.missing.length)good++;
-  return '<tr><td>'+safe(r.code)+'</td><td>'+safe(r.label)+'</td><td>'+r.cuts.join(" + ")+' mm</td><td>'+available.reduce((s,x)=>s+x.qty,0)+' ks tyčí'+(offcuts.length?' + '+offcuts.length+' odrezok/odrezky':'')+'</td><td>'+(plan.missing.length?'CHÝBA '+plan.missing.length+' rezov':'OK · '+plan.bars.length+' tyč/tyče')+'</td></tr>';
+  return '<tr><td>'+safe(profileDisplay(r.code,r.label))+'</td><td>'+safe(r.label)+'</td><td>'+r.cuts.join(" + ")+' mm</td><td>'+available.reduce((s,x)=>s+x.qty,0)+' ks tyčí'+(offcuts.length?' + '+offcuts.length+' odrezok/odrezky':'')+'</td><td>'+(plan.missing.length?'CHÝBA '+plan.missing.length+' rezov':'OK · '+plan.bars.length+' tyč/tyče')+'</td></tr>';
  }).join("");
  const el=$("#markizyStockResult");
  el.innerHTML='<div class="note"><b>Kontrola profilov: '+good+'/4 typov dostupných.</b> Výpočet používa celé tyče, rezervácie a rez 5 mm; odrezky zobrazuje informatívne, nezapočítava ich do návrhu rezania.</div><div class="scroll"><table><tr><th>Kód</th><th>Profil</th><th>Požadované rezy</th><th>Sklad</th><th>Výsledok</th></tr>'+rows+'</table></div><p class="muted">Pozor: W.6033.PS z výrobného listu nie je totožný s W.6033.EL na sklade. Sklo, kovanie a tesnenia nie sú overené. Bez odpisu a rezervácie.</p>';
@@ -444,7 +449,7 @@ function checkFrameStock(i){
  const bins=[];for(const x of candidates)for(let j=0;j<x.available;j++)bins.push({length:x.length,remaining:x.length,code:x.code});
  bins.sort((a,b)=>a.length-b.length);
  let missing=0;for(const cut of v.cuts.sort((a,b)=>b-a)){const b=bins.filter(b=>b.remaining>=cut+5).sort((a,b)=>(a.remaining-cut)-(b.remaining-cut))[0];if(b)b.remaining-=cut+5;else missing++}
- rows.push([code+" · "+(code==="P005"?"Doraz / stredový doraz":v.name),v.color,v.cuts.length,missing?"Chýba "+missing+" rezov":"Predbežne dostupné",candidates.map(x=>x.length+" mm × "+x.available).join("; ")||"Bez zásoby"]);
+ rows.push([profileDisplay(code,code==="P005"?"Doraz / stredový doraz":v.name),v.color,v.cuts.length,missing?"Chýba "+missing+" rezov":"Predbežne dostupné",candidates.map(x=>x.length+" mm × "+x.available).join("; ")||"Bez zásoby"]);
  if(missing)issues.push(v.name);
  }
  const html='<div class="v7production"><h1>LANGAS · KONTROLA SKLADU</h1><p>'+safe(o.id)+' · '+safe(o.name)+'</p><p>Predbežný výpočet podľa inventúry, farby a dĺžky tyčí. Rez 5 mm. Bez rezervácie.</p><table><tr><th>Profil</th><th>Farba</th><th>Rezov</th><th>Výsledok</th><th>Dostupné tyče</th></tr>'+rows.map(r=>'<tr>'+r.map(v=>'<td>'+safe(v)+'</td>').join("")+'</tr>').join("")+'</table><p><b>'+(issues.length?"Vyžaduje kontrolu: "+safe(issues.join(", ")):"Všetky namapované rezy predbežne pokryté")+'</b></p><p>Doraz a stredový doraz čerpajú zo spoločného P005. Teleskop 1 = P010 (6615), Teleskop 2 = P011 (6616). Ide o skúšobnú kontrolu bez rezervácie a odpisu.</p></div>';
@@ -749,7 +754,7 @@ function initFreeOptimizer(){
   const items=P.filter(x=>(x.systems||[x.system]).includes(selected));
   const unique=new Map(items.map(x=>[x.profileCode||x.code,{code:x.profileCode||x.code,name:x.name}]));
   const prev=ps.value;
-  ps.innerHTML=[...unique.values()].sort((a,b)=>a.code.localeCompare(b.code,"sk")).map(x=>'<option value="'+safe(x.code)+'">'+safe(x.code+" · "+x.name)+'</option>').join("");
+  ps.innerHTML=[...unique.values()].sort((a,b)=>a.code.localeCompare(b.code,"sk")).map(x=>'<option value="'+safe(x.code)+'">'+safe(profileDisplay(x.code,x.name))+'</option>').join("");
   if(unique.has(prev))ps.value=prev;
   update();
  };
@@ -767,7 +772,7 @@ function initFreeOptimizer(){
  let editIndex=-1;
  const invalidate=()=>{$("#freeResult").innerHTML="";};
  const render=()=>{
-  $("#freeCutsList").innerHTML='<h3>Požadované rezy</h3>'+(freeCuts.length?'<div class="scroll"><table><tr><th>Profil</th><th>Farba</th><th>Dĺžka</th><th>Ks</th><th>Možnosti</th></tr>'+freeCuts.map((x,i)=>'<tr><td>'+safe(x.profile)+'</td><td>'+safe(x.color)+'</td><td>'+x.length+' mm</td><td>'+x.qty+'</td><td><button type="button" class="freeEdit" data-index="'+i+'">Upraviť</button> <button type="button" class="freeDelete gray" data-index="'+i+'">Vymazať</button></td></tr>').join("")+'</table></div>':'<p class="muted">Zatiaľ nie sú zadané rezy.</p>');
+  $("#freeCutsList").innerHTML='<h3>Požadované rezy</h3>'+(freeCuts.length?'<div class="scroll"><table><tr><th>Profil</th><th>Farba</th><th>Dĺžka</th><th>Ks</th><th>Možnosti</th></tr>'+freeCuts.map((x,i)=>'<tr><td>'+safe(profileDisplay(x.profile))+'</td><td>'+safe(x.color)+'</td><td>'+x.length+' mm</td><td>'+x.qty+'</td><td><button type="button" class="freeEdit" data-index="'+i+'">Upraviť</button> <button type="button" class="freeDelete gray" data-index="'+i+'">Vymazať</button></td></tr>').join("")+'</table></div>':'<p class="muted">Zatiaľ nie sú zadané rezy.</p>');
   $("#freeCutsList").querySelectorAll(".freeEdit").forEach(b=>b.onclick=()=>{
    const i=Number(b.dataset.index),x=freeCuts[i];if(!x)return;
    const entry=P.find(p=>(p.profileCode||p.code)===x.profile&&p.color===x.color);
@@ -833,10 +838,10 @@ function initFreeOptimizer(){
    const maxCuts=Math.max(1,...plan.bars.map(b=>b.cuts.length));
    const head='<tr><th>Tyč</th><th>Vstup (mm)</th>'+Array.from({length:maxCuts},(_,i)=>'<th>Rez '+(i+1)+'</th>').join("")+'<th>Zvyšok (mm)</th></tr>';
    const body=plan.bars.map((b,i)=>'<tr><td><b>'+(i+1)+'</b></td><td>'+b.length+'</td>'+Array.from({length:maxCuts},(_,j)=>'<td>'+(b.cuts[j]===undefined?'–':b.cuts[j].toLocaleString("sk-SK",{maximumFractionDigits:1}))+'</td>').join("")+'<td><b>'+b.free.toLocaleString("sk-SK",{maximumFractionDigits:1})+'</b></td></tr>').join("");
-   const detail='<div class="cutDetail"><h4>'+safe(g.profile)+' · '+safe(g.color)+' – rozpis jednotlivých tyčí</h4><table class="cutMatrix">'+head+body+'</table></div>';
+   const detail='<div class="cutDetail"><h4>'+safe(profileDisplay(g.profile))+' · '+safe(g.color)+' – rozpis jednotlivých tyčí</h4><table class="cutMatrix">'+head+body+'</table></div>';
    return '<tr><td>'+safe(g.profile)+' · '+safe(g.color)+'</td><td>'+plan.bars.length+'</td><td>'+plan.yield.toFixed(1)+' %</td><td>'+Math.round(plan.reusable)+' mm</td><td>'+Math.round(plan.scrap)+' mm</td><td>'+plan.missing.length+'</td></tr><tr class="detailRow"><td colspan="6">'+detail+'</td></tr>';
   }).join("");
-  $("#freeResult").innerHTML='<h3>Výsledok optimalizácie</h3><p>Rýchly plán: '+fastTotal+' tyčí · Zvolený plán: '+finalTotal+' tyčí · Rozdiel: '+(fastTotal-finalTotal)+' tyčí. Použitý režim: '+(chosenDepth==="deep"?"HĹBKOVÁ OPTIMALIZÁCIA":"RÝCHLA OPTIMALIZÁCIA")+' · '+methods.map(m=>safe(m.profile+": "+m.method)).join("; ")+'.</p><p><b>Vyťaženosť: '+(used?100*parts/used:0).toFixed(1)+' %</b> · Efektívne využitie: '+(used?100*(parts+reusable)/used:0).toFixed(1)+' % · Použiteľné zvyšky: '+Math.round(reusable)+' mm · Odpad: '+Math.round(scrap)+' mm · Chýbajúce rezy: '+missing+'</p><div class="scroll"><table><tr><th>Profil</th><th>Tyče</th><th>Vyťaženosť</th><th>Zvyšky</th><th>Odpad</th><th>Chýba</th></tr>'+rows+'</table></div><p class="muted">Testovací výpočet bez rezervácie a odpisu skladu. Presné optimum je potvrdené iba tam, kde je výslovne uvedená presná metóda.</p>';
+  $("#freeResult").innerHTML='<h3>Výsledok optimalizácie</h3><p>Rýchly plán: '+fastTotal+' tyčí · Zvolený plán: '+finalTotal+' tyčí · Rozdiel: '+(fastTotal-finalTotal)+' tyčí. Použitý režim: '+(chosenDepth==="deep"?"HĹBKOVÁ OPTIMALIZÁCIA":"RÝCHLA OPTIMALIZÁCIA")+' · '+methods.map(m=>safe(profileDisplay(m.profile)+": "+m.method)).join("; ")+'.</p><p><b>Vyťaženosť: '+(used?100*parts/used:0).toFixed(1)+' %</b> · Efektívne využitie: '+(used?100*(parts+reusable)/used:0).toFixed(1)+' % · Použiteľné zvyšky: '+Math.round(reusable)+' mm · Odpad: '+Math.round(scrap)+' mm · Chýbajúce rezy: '+missing+'</p><div class="scroll"><table><tr><th>Profil</th><th>Tyče</th><th>Vyťaženosť</th><th>Zvyšky</th><th>Odpad</th><th>Chýba</th></tr>'+rows+'</table></div><p class="muted">Testovací výpočet bez rezervácie a odpisu skladu. Presné optimum je potvrdené iba tam, kde je výslovne uvedená presná metóda.</p>';
  };
  render();
 }
