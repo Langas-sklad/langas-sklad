@@ -190,6 +190,25 @@ function renderDubnica(){
  $("#dubnicaResult").innerHTML='<div class="'+(missing.length?"warn":"note")+'"><b>'+(missing.length?"Materiál nie je kompletný.":"Materiál podľa kontroly postačuje.")+'</b></div><div class="scroll"><table><tr><th>Kód</th><th>Položka</th><th>Potrebujeme</th><th>Dostupné</th><th>Stav</th></tr>'+a.map(x=>'<tr><td>'+x.code+'</td><td>'+x.label+(x.note?'<br><span class="muted">'+x.note+'</span>':'')+'</td><td>'+x.need+' '+x.unit+'</td><td>'+x.display+'</td><td class="'+(x.ok?'ok':'bad')+'">'+(x.ok?'OK':'CHÝBA')+'</td></tr>').join('')+'</table></div>';
  return a;
 }
+function checkMarkizyWarehouse(){
+ const requests=[
+  {code:"W.6033.00.00.PS.650.28",label:"Spodný 3-koľajový",cuts:[2630,1710]},
+  {code:"W.6043.00.00.PS.650.28",label:"Horný 3-koľajový",cuts:[2630,1710]},
+  {code:"W.6013.00.00.PS.650.28",label:"Bočný doraz",cuts:[2480,2480,2480,2480]},
+  {code:"W.6010.00.00.PS.650.28",label:"Profil ku sklu 10 mm",cuts:[857,857,857,550.3,550.3,550.3]}
+ ];
+ let good=0;const rows=requests.map(r=>{
+  const stock=P.filter(x=>(x.profileCode||x.code)===r.code&&x.color==="Surová"&&x.qty>0);
+  const available=stock.map(x=>({code:x.code,length:x.length,qty:Math.max(0,x.qty-reservedFor(x.code)),color:x.color}));
+  const plan=packFrameOptimized(r.cuts,available,5);
+  const offcuts=C.filter(x=>x.code===r.code&&x.color==="Surová"&&x.status==="DOSTUPNÝ");
+  if(!plan.missing.length)good++;
+  return '<tr><td>'+safe(r.code)+'</td><td>'+safe(r.label)+'</td><td>'+r.cuts.join(" + ")+' mm</td><td>'+available.reduce((s,x)=>s+x.qty,0)+' ks tyčí'+(offcuts.length?' + '+offcuts.length+' odrezok/odrezky':'')+'</td><td>'+(plan.missing.length?'CHÝBA '+plan.missing.length+' rezov':'OK · '+plan.bars.length+' tyč/tyče')+'</td></tr>';
+ }).join("");
+ const el=$("#markizyStockResult");
+ el.innerHTML='<div class="note"><b>Kontrola profilov: '+good+'/4 typov dostupných.</b> Výpočet používa celé tyče, rezervácie a rez 5 mm; odrezky zobrazuje informatívne, nezapočítava ich do návrhu rezania.</div><div class="scroll"><table><tr><th>Kód</th><th>Profil</th><th>Požadované rezy</th><th>Sklad</th><th>Výsledok</th></tr>'+rows+'</table></div><p class="muted">Pozor: W.6033.PS z výrobného listu nie je totožný s W.6033.EL na sklade. Sklo, kovanie a tesnenia nie sú overené. Bez odpisu a rezervácie.</p>';
+}
+$("#checkMarkizy").onclick=checkMarkizyWarehouse;
 $("#checkDubnica").onclick=renderDubnica;
 $("#reserveDubnica").onclick=()=>{
  if(dubnicaReserved)return alert("Teraska Dubnica je už rezervovaná.");
