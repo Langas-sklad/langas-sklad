@@ -1,7 +1,8 @@
 const D=window.DATA;let P=structuredClone(D.stock),C=structuredClone(D.cuts),H=[],R=[],stockSystem="all",cutSystem="all";const $=s=>document.querySelector(s),findP=c=>P.find(x=>x.code===c||x.profileCode===c);C.forEach(x=>{let p=findP(x.code);if(p){x.system=x.system||p.system||"Nezaradené";x.systems=x.systems||p.systems||[x.system];x.color=x.color||p.color}});
 function profileBase(code){
- const match=String(code||"").match(/^W[.]\\d+/);
- return match?match[0]:String(code||"");
+ const value=String(code||"");
+ const match=value.match(/^W[.][0-9]+/i);
+ return match?match[0].toUpperCase():value;
 }
 function profileName(code,fallback=""){
  const exact=P.find(x=>(x.profileCode||x.code)===code&&x.name)||C.find(x=>x.code===code&&x.name);
