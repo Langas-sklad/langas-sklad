@@ -196,9 +196,8 @@ function renderDubnica(){
  return a;
 }
 function profileAlternatives(code,color){
- const base=String(code).match(/^W\.\d+/)?.[0]||String(code);
- return P.filter(x=>(x.profileCode||x.code)!==code&&((x.profileCode||x.code).match(/^W\.\d+/)?.[0]||"")===base&&x.qty-reservedFor(x.code)>0)
- .filter(x=>!color||x.color!==color||(x.profileCode||x.code)!==code);
+ const base=String(code).match(/^W\\.\\d+/)?.[0]||String(code);
+ return P.filter(x=>{const id=x.profileCode||x.code;const group=String(id).match(/^W\\.\\d+/)?.[0]||id;return group===base&&(id!==code||x.color!==color)&&x.qty-reservedFor(x.code)>0});
 }
 function alternativeLabel(code,color){
  const alternatives=profileAlternatives(code,color);
@@ -459,7 +458,7 @@ function checkFrameStock(i){
  const bins=[];for(const x of candidates)for(let j=0;j<x.available;j++)bins.push({length:x.length,remaining:x.length,code:x.code});
  bins.sort((a,b)=>a.length-b.length);
  let missing=0;for(const cut of v.cuts.sort((a,b)=>b-a)){const b=bins.filter(b=>b.remaining>=cut+5).sort((a,b)=>(a.remaining-cut)-(b.remaining-cut))[0];if(b)b.remaining-=cut+5;else missing++}
- rows.push([profileDisplay(code,code==="P005"?"Doraz / stredový doraz":v.name),v.color,v.cuts.length,missing?"Chýba "+missing+" rezov":"Predbežne dostupné",candidates.map(x=>x.length+" mm × "+x.available).join("; ")||"Bez zásoby"]);
+ rows.push([profileDisplay(code,code==="P005"?"Doraz / stredový doraz":v.name),v.color,v.cuts.length,missing?"Chýba "+missing+" rezov"+(profileAlternatives(code,v.color).length?" · dostupná alternatíva (overiť)":""):"Predbežne dostupné",(candidates.map(x=>x.length+" mm × "+x.available).join("; ")||"Bez zásoby")+(missing&&profileAlternatives(code,v.color).length?" | Alternatíva: "+profileAlternatives(code,v.color).map(x=>(x.profileCode||x.code)+" / "+x.color+" / "+(x.qty-reservedFor(x.code))+" ks").join("; "):"")]);
  if(missing)issues.push(v.name);
  }
  const html='<div class="v7production"><h1>LANGAS · KONTROLA SKLADU</h1><p>'+safe(o.id)+' · '+safe(o.name)+'</p><p>Predbežný výpočet podľa inventúry, farby a dĺžky tyčí. Rez 5 mm. Bez rezervácie.</p><table><tr><th>Profil</th><th>Farba</th><th>Rezov</th><th>Výsledok</th><th>Dostupné tyče</th></tr>'+rows.map(r=>'<tr>'+r.map(v=>'<td>'+safe(v)+'</td>').join("")+'</tr>').join("")+'</table><p><b>'+(issues.length?"Vyžaduje kontrolu: "+safe(issues.join(", ")):"Všetky namapované rezy predbežne pokryté")+'</b></p><p>Doraz a stredový doraz čerpajú zo spoločného P005. Teleskop 1 = P010 (6615), Teleskop 2 = P011 (6616). Ide o skúšobnú kontrolu bez rezervácie a odpisu.</p></div>';
@@ -845,7 +844,7 @@ function initFreeOptimizer(){
    let candidates=P.filter(x=>(x.profileCode||x.code)===g.profile&&x.color===g.color).map(x=>({code:x.code,length:Number(x.length),qty:Math.max(0,x.qty-reservedFor(x.code)),color:x.color})).filter(x=>x.qty>0);
    if($("#freeMode").value==="custom"){const selected=Number($("#freeBar").value);if(g.profile===ps.value&&g.color===$("#freeColor").value)candidates=candidates.filter(x=>x.length===selected)}
    const fast=packFrameOptimized(g.cuts,candidates,kerf);const plan=$("#freeDepth").value==="deep"?packFrameDeep(g.cuts,candidates,kerf):fast;methods.push({profile:g.profile,color:g.color,method:chosenDepth==="fast"?"Rýchla heuristika":(plan.method||"Hĺbková heuristika – optimum nepotvrdené")});fastTotal+=fast.bars.length;finalTotal+=plan.bars.length;used+=plan.used;parts+=plan.parts;reusable+=plan.reusable;scrap+=plan.scrap;missing+=plan.missing.length;
-   const maxCuts=Math.max(1,...plan.bars.map(b=>b.cuts.length));
+   const altNotice=plan.missing.length?alternativeLabel(g.profile,g.color):"";const maxCuts=Math.max(1,...plan.bars.map(b=>b.cuts.length));
    const head='<tr><th>Tyč</th><th>Vstup (mm)</th>'+Array.from({length:maxCuts},(_,i)=>'<th>Rez '+(i+1)+'</th>').join("")+'<th>Zvyšok (mm)</th></tr>';
    const body=plan.bars.map((b,i)=>'<tr><td><b>'+(i+1)+'</b></td><td>'+b.length+'</td>'+Array.from({length:maxCuts},(_,j)=>'<td>'+(b.cuts[j]===undefined?'–':b.cuts[j].toLocaleString("sk-SK",{maximumFractionDigits:1}))+'</td>').join("")+'<td><b>'+b.free.toLocaleString("sk-SK",{maximumFractionDigits:1})+'</b></td></tr>').join("");
    const detail='<div class="cutDetail"><h4>'+safe(profileDisplay(g.profile))+' · '+safe(g.color)+' – rozpis jednotlivých tyčí</h4><table class="cutMatrix">'+head+body+'</table></div>';
