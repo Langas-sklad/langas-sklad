@@ -1,7 +1,15 @@
 const D=window.DATA;let P=structuredClone(D.stock),C=structuredClone(D.cuts),H=[],R=[],stockSystem="all",cutSystem="all";const $=s=>document.querySelector(s),findP=c=>P.find(x=>x.code===c||x.profileCode===c);C.forEach(x=>{let p=findP(x.code);if(p){x.system=x.system||p.system||"Nezaradené";x.systems=x.systems||p.systems||[x.system];x.color=x.color||p.color}});
+function profileBase(code){
+ const match=String(code||"").match(/^W[.]\\d+/);
+ return match?match[0]:String(code||"");
+}
 function profileName(code,fallback=""){
- const item=P.find(x=>x.profileCode===code||x.code===code)||C.find(x=>x.code===code&&x.name);
- return item&&item.name?item.name:(fallback||"Názov nie je v sklade");
+ const exact=P.find(x=>(x.profileCode||x.code)===code&&x.name)||C.find(x=>x.code===code&&x.name);
+ if(exact)return exact.name;
+ const base=profileBase(code);
+ const matches=P.filter(x=>profileBase(x.profileCode||x.code)===base&&x.name);
+ const names=[...new Set(matches.map(x=>x.name.trim()))];
+ return names.length===1?names[0]:(fallback||"Názov treba overiť v katalógu");
 }
 function profileDisplay(code,fallback=""){return code+" · "+profileName(code,fallback)}
 function show(id){if(id==="shipped")renderShipped();document.querySelectorAll("main>section").forEach(x=>x.classList.add("hidden"));$("#"+id).classList.remove("hidden");document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.p===id));scrollTo(0,0)}document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>show(b.dataset.p));$("#printBtn").onclick=()=>print();
@@ -196,8 +204,11 @@ function renderDubnica(){
  return a;
 }
 function profileAlternatives(code,color){
- const base=String(code).match(/^W\\.\\d+/)?.[0]||String(code);
- return P.filter(x=>{const id=x.profileCode||x.code;const group=String(id).match(/^W\\.\\d+/)?.[0]||id;return group===base&&(id!==code||x.color!==color)&&x.qty-reservedFor(x.code)>0});
+ const base=profileBase(code);
+ return P.filter(x=>{
+  const id=x.profileCode||x.code;
+  return profileBase(id)===base&&(id!==code||x.color!==color)&&x.qty-reservedFor(x.code)>0;
+ });
 }
 function alternativeLabel(code,color){
  const alternatives=profileAlternatives(code,color);
