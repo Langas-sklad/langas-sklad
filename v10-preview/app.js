@@ -195,6 +195,16 @@ function renderDubnica(){
  $("#dubnicaResult").innerHTML='<div class="'+(missing.length?"warn":"note")+'"><b>'+(missing.length?"Materiál nie je kompletný.":"Materiál podľa kontroly postačuje.")+'</b></div><div class="scroll"><table><tr><th>Kód</th><th>Položka</th><th>Potrebujeme</th><th>Dostupné</th><th>Stav</th></tr>'+a.map(x=>'<tr><td>'+safe(profileDisplay(x.code,x.label))+'</td><td>'+x.label+(x.note?'<br><span class="muted">'+x.note+'</span>':'')+'</td><td>'+x.need+' '+x.unit+'</td><td>'+x.display+'</td><td class="'+(x.ok?'ok':'bad')+'">'+(x.ok?'OK':'CHÝBA')+'</td></tr>').join('')+'</table></div>';
  return a;
 }
+function profileAlternatives(code,color){
+ const base=String(code).match(/^W\.\d+/)?.[0]||String(code);
+ return P.filter(x=>(x.profileCode||x.code)!==code&&((x.profileCode||x.code).match(/^W\.\d+/)?.[0]||"")===base&&x.qty-reservedFor(x.code)>0)
+ .filter(x=>!color||x.color!==color||(x.profileCode||x.code)!==code);
+}
+function alternativeLabel(code,color){
+ const alternatives=profileAlternatives(code,color);
+ if(!alternatives.length)return "";
+ return '<span style="background:#fff2a8;color:#604600;padding:3px 6px;border-radius:3px;display:inline-block;font-weight:600">Alternatíva na sklade: '+alternatives.map(x=>safe(profileDisplay(x.profileCode||x.code))+' · '+safe(x.color)+' · '+(x.qty-reservedFor(x.code))+' ks × '+x.length+' mm').join("; ")+' — overiť zameniteľnosť / povrchovú úpravu</span>';
+}
 function checkMarkizyWarehouse(){
  const requests=[
   {code:"W.6033.00.00.PS.650.28",label:"Spodný 3-koľajový",cuts:[2630,1710]},
@@ -208,10 +218,10 @@ function checkMarkizyWarehouse(){
   const plan=packFrameOptimized(r.cuts,available,5);
   const offcuts=C.filter(x=>x.code===r.code&&x.color==="Surová"&&x.status==="DOSTUPNÝ");
   if(!plan.missing.length)good++;
-  return '<tr><td>'+safe(profileDisplay(r.code,r.label))+'</td><td>'+safe(r.label)+'</td><td>'+r.cuts.join(" + ")+' mm</td><td>'+available.reduce((s,x)=>s+x.qty,0)+' ks tyčí'+(offcuts.length?' + '+offcuts.length+' odrezok/odrezky':'')+'</td><td>'+(plan.missing.length?'CHÝBA '+plan.missing.length+' rezov':'OK · '+plan.bars.length+' tyč/tyče')+'</td></tr>';
+  return '<tr><td>'+safe(profileDisplay(r.code,r.label))+'</td><td>'+safe(r.label)+'</td><td>'+r.cuts.join(" + ")+' mm</td><td>'+available.reduce((s,x)=>s+x.qty,0)+' ks tyčí'+(offcuts.length?' + '+offcuts.length+' odrezok/odrezky':'')+'</td><td>'+(plan.missing.length?'CHÝBA '+plan.missing.length+' rezov'+(alternativeLabel(r.code,'Surová')?'<div>'+alternativeLabel(r.code,'Surová')+'</div>':''):'OK · '+plan.bars.length+' tyč/tyče')+'</td></tr>';
  }).join("");
  const el=$("#markizyStockResult");
- el.innerHTML='<div class="note"><b>Kontrola profilov: '+good+'/4 typov dostupných.</b> Výpočet používa celé tyče, rezervácie a rez 5 mm; odrezky zobrazuje informatívne, nezapočítava ich do návrhu rezania.</div><div class="scroll"><table><tr><th>Kód</th><th>Profil</th><th>Požadované rezy</th><th>Sklad</th><th>Výsledok</th></tr>'+rows+'</table></div><p class="muted">Pozor: W.6033.PS z výrobného listu nie je totožný s W.6033.EL na sklade. Sklo, kovanie a tesnenia nie sú overené. Bez odpisu a rezervácie.</p>';
+ el.innerHTML='<div class="note"><b>Kontrola profilov: '+good+'/4 typov dostupných.</b> Výpočet používa celé tyče, rezervácie a rez 5 mm; odrezky zobrazuje informatívne, nezapočítava ich do návrhu rezania.</div><div class="scroll"><table><tr><th>Kód</th><th>Profil</th><th>Požadované rezy</th><th>Sklad</th><th>Výsledok</th></tr>'+rows+'</table></div><p class="muted">Pozor: W.6033.PS z výrobného listu nie je totožný s W.6033.EL na sklade. Žlto označené alternatívy sú návrh na použitie, nie automaticky schválená náhrada. Sklo, kovanie a tesnenia nie sú overené. Bez odpisu a rezervácie.</p>';
 }
 $("#checkMarkizy").onclick=checkMarkizyWarehouse;
 $("#checkDubnica").onclick=renderDubnica;
