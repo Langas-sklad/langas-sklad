@@ -783,6 +783,24 @@ function initFreeOptimizer(){
  }
  $("#freePrint").onclick=()=>exportFreeOptimization(false);
  $("#freePdf").onclick=()=>{alert("V nasledujúcom okne zvoľ tlačiareň „Uložiť ako PDF“ (Microsoft Print to PDF). Formát je A4 na šírku.");exportFreeOptimization(true)};
+ $("#freeLoadMarkizy").onclick=()=>{
+  if(freeCuts.length&&!confirm("Nahradiť aktuálne zadané rezy testovacou zákazkou Markízy?"))return;
+  resetEdit();freeCuts.length=0;
+  const rows=[
+   ["W.6033.00.00.PS.650.28",2630,1],["W.6033.00.00.PS.650.28",1710,1],
+   ["W.6043.00.00.PS.650.28",2630,1],["W.6043.00.00.PS.650.28",1710,1],
+   ["W.6013.00.00.PS.650.28",2480,4],
+   ["W.6010.00.00.PS.650.28",857,3],["W.6010.00.00.PS.650.28",550.3,3]
+  ];
+  for(const [profile,length,qty] of rows)freeCuts.push({profile,color:"Surová",length,qty});
+  $("#freeJob").value="Markízy – Silenta 2630 + 1710";
+  systemSelect.value="Bezrámové zasklenie";updateProfiles();
+  $("#freeMode").value="auto";$("#freeKerf").value="5";
+  $("#freeDepth").value="deep";
+  invalidate();render();
+  $("#freePresetNotice").textContent="Načítaných 7 položiek rezania pre 2 systémy Silenta. Pozor: výrobný list vyžaduje W.6033.00.00.PS.650.28, ale sklad eviduje W.6033.00.00.EL.650.28. Bez potvrdenia zameniteľnosti je tento profil nedostupný. Sklo, tesnenia a kovanie nie sú súčasťou optimalizácie.";
+  $("#freeRun").click();
+ };
  $("#freeClear").onclick=()=>{resetEdit();freeCuts.length=0;$("#freeResult").innerHTML="";render()};
  $("#freeRun").onclick=()=>{
   if(!freeCuts.length)return alert("Najprv pridaj rezy.");
