@@ -984,16 +984,16 @@ function initPortal(){
       if(!short||!alt||!Number.isInteger(qty)||qty<1||qty>short.missing||qty>alt.free)return alert("Neplatná náhrada alebo množstvo.");
       order.substitutions=order.substitutions||[];order.substitutions=order.substitutions.filter(x=>x.requestCode!==code);
       order.substitutions.push({requestCode:code,altCode:alt.code,qty,status:"Čaká na rozhodnutie odberateľa",delivery:null,deliveryDate:null});
-      order.status="Čaká na rozhodnutie odberateľa";render();alert("Návrh zámeny bol vytvorený na schválenie. Materiál sa nemení.");
+      order.status="Čaká na rozhodnutie odberateľa";recordEvent(order,"Návrh zámeny od LANGAS",code+" → "+alt.code+" · "+qty+" ks","admin");render();alert("Návrh zámeny bol vytvorený na schválenie. Materiál sa nemení.");
     });
     target.querySelectorAll(".portalCustomerAgree,.portalCustomerDecline").forEach(btn=>btn.onclick=()=>{
       if(role.value!==order.role)return;
       const sub=(order.substitutions||[]).find(x=>x.requestCode===btn.dataset.code&&x.status==="Čaká na rozhodnutie odberateľa");if(!sub)return;
-      if(btn.classList.contains("portalCustomerDecline")){sub.status="Odberateľ odmietol";order.status="Čaká na nové riešenie";render();return}
+      if(btn.classList.contains("portalCustomerDecline")){sub.status="Odberateľ odmietol";order.status="Čaká na nové riešenie";recordEvent(order,"Odberateľ zamietol zámenu",sub.requestCode+" → "+sub.altCode,order.role);render();return}
       const delivery=target.querySelector('.portalDelivery[data-code="'+btn.dataset.code+'"]').value;
       if(!confirm(delivery==="raw"?"Súhlasíš s dodaním náhradných profilov v surovom stave?":"Súhlasíš s lakovaním náhradných profilov a neskorším termínom dodania?"))return;
       sub.delivery=delivery;sub.status="Odberateľ súhlasil – čaká na potvrdenie LANGAS";sub.customerApprovedAt=new Date().toLocaleString("sk-SK");
-      order.status="Čaká na potvrdenie zámeny LANGAS";render();
+      order.status="Čaká na potvrdenie zámeny LANGAS";recordEvent(order,"Odberateľ súhlasil so zámenou",sub.qty+" ks · "+(delivery==="raw"?"Dodať surové":"Nalakovať a dodať neskôr"),order.role);render();
     });
     target.querySelectorAll(".portalAcceptSub,.portalRejectSub").forEach(btn=>btn.onclick=()=>{
       const sub=(order.substitutions||[]).find(x=>x.requestCode===btn.dataset.code);if(!sub)return;
@@ -1006,8 +1006,8 @@ function initPortal(){
           if(!date||!date.trim())return alert("Pri lakovaní musí LANGAS uviesť nový termín dodania.");
           sub.deliveryDate=date.trim();
         }
-        sub.status="Schválená – čaká na realizáciu";sub.langasApprovedAt=new Date().toLocaleString("sk-SK");
-      }else sub.status="Zamietnutá";
+        sub.status="Schválená – čaká na realizáciu";recordEvent(order,"LANGAS schválil zámenu",sub.qty+" ks · "+(sub.delivery==="raw"?"Dodať surové":"Lakovanie, termín "+sub.deliveryDate),"admin");sub.langasApprovedAt=new Date().toLocaleString("sk-SK");
+      }else {sub.status="Zamietnutá";recordEvent(order,"LANGAS zamietol zámenu",sub.requestCode+" → "+sub.altCode,"admin")}
       order.status="Čaká na dokončenie kontroly materiálu";render();
     });
   });
