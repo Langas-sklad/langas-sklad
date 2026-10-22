@@ -971,7 +971,7 @@ function initPortal(){
       const options=substituteOptions({code:x.code});
       const current=(order.substitutions||[]).find(s=>s.requestCode===x.code);
       return '<div class="card"><b>'+safe(x.profileCode+' · '+x.name)+'</b><p>Požadovaná farba: '+safe(x.color)+' · Chýba '+x.missing+' ks</p>'+
-       (current?'<p><b>Návrh:</b> '+safe(current.altCode)+' · '+current.qty+' ks · '+safe(current.status)+'</p>'+(current.status==="Čaká na rozhodnutie odberateľa"&&role.value===order.role?'<label>Spôsob dodania náhradných profilov</label><select class="portalDelivery" data-code="'+safe(x.code)+'"><option value="raw">Dodať surové, bez lakovania</option><option value="paint">Nalakovať na požadovanú farbu – neskorší termín</option></select><button class="portalCustomerAgree" data-code="'+safe(x.code)+'">Súhlasím s náhradou</button> <button class="portalCustomerDecline" data-code="'+safe(x.code)+'">Odmietnuť náhradu</button>':''):'')+
+       (current?'<p><b>Návrh:</b> '+safe(current.altCode)+' · '+current.qty+' ks · '+safe(current.status)+'</p>'+(current.status==="Čaká na konečné potvrdenie odberateľa"&&role.value===order.role?'<div class="card"><p><b>LANGAS navrhuje dodanie nalakovaných profilov v termíne '+safe(current.deliveryDate||"neurčený")+'.</b></p><p>Vyber si konečné riešenie:</p><button class="portalFinalPaint" data-code="'+safe(x.code)+'">Schváliť nový termín</button> <button class="portalFinalRaw" data-code="'+safe(x.code)+'">Schváliť dodanie v surovom stave</button> <button class="portalFinalReject" data-code="'+safe(x.code)+'">Odmietnuť návrh</button></div>':'')+(current.status==="Čaká na rozhodnutie odberateľa"&&role.value===order.role?'<label>Spôsob dodania náhradných profilov</label><select class="portalDelivery" data-code="'+safe(x.code)+'"><option value="raw">Dodať surové, bez lakovania</option><option value="paint">Nalakovať na požadovanú farbu – neskorší termín</option></select><button class="portalCustomerAgree" data-code="'+safe(x.code)+'">Súhlasím s náhradou</button> <button class="portalCustomerDecline" data-code="'+safe(x.code)+'">Odmietnuť náhradu</button>':''):'')+
        (role.value==="admin"&&options.length?'<label>Náhradný skladový profil</label><select class="portalSubChoice" data-code="'+safe(x.code)+'">'+options.map(y=>'<option value="'+safe(y.code)+'">'+safe(y.profileCode+' · '+y.color+' · '+y.free+' ks voľných')+'</option>').join("")+'</select><label>Množstvo na zámenu</label><input class="portalSubQty" data-code="'+safe(x.code)+'" type="number" min="1" max="'+x.missing+'" value="'+x.missing+'"><button class="portalPropose" data-code="'+safe(x.code)+'">Odoslať návrh na schválenie</button>':'')+'</div>';
     }).join("");
     const approvals=(order.substitutions||[]).map(s=>'<p><b>'+safe(s.requestCode)+'</b> → '+safe(s.altCode)+' · '+s.qty+' ks · '+safe(s.status)+(role.value==="admin"&&s.status==="Odberateľ súhlasil – čaká na potvrdenie LANGAS"?'<button class="portalAcceptSub" data-code="'+safe(s.requestCode)+'">Schváliť</button> <button class="portalRejectSub" data-code="'+safe(s.requestCode)+'">Zamietnuť</button>':'')+'</p>').join("");
@@ -995,6 +995,24 @@ function initPortal(){
       sub.delivery=delivery;sub.status="Odberateľ súhlasil – čaká na potvrdenie LANGAS";sub.customerApprovedAt=new Date().toLocaleString("sk-SK");
       order.status="Čaká na potvrdenie zámeny LANGAS";recordEvent(order,"Odberateľ súhlasil so zámenou",sub.qty+" ks · "+(delivery==="raw"?"Dodať surové":"Nalakovať a dodať neskôr"),order.role);render();
     });
+    target.querySelectorAll(".portalFinalPaint,.portalFinalRaw,.portalFinalReject").forEach(btn=>btn.onclick=()=>{
+      if(role.value!==order.role)return;
+      const sub=(order.substitutions||[]).find(x=>x.requestCode===btn.dataset.code&&x.status==="Čaká na konečné potvrdenie odberateľa");
+      if(!sub)return;
+      if(btn.classList.contains("portalFinalReject")){
+        if(!confirm("Odmietnuť navrhnutý termín aj dodanie surového profilu?"))return;
+        sub.status="Odberateľ odmietol konečný návrh";order.status="Čaká na nové riešenie";
+        recordEvent(order,"Odberateľ odmietol nový termín",sub.qty+" ks · "+sub.deliveryDate,order.role);
+      }else{
+        const raw=btn.classList.contains("portalFinalRaw");
+        if(!confirm(raw?"Potvrdiť dodanie "+sub.qty+" ks v surovom stave bez lakovania?":"Potvrdiť dodanie "+sub.qty+" ks nalakovaných profilov v termíne "+sub.deliveryDate+"?"))return;
+        sub.delivery=raw?"raw":"paint";sub.status="Schválená – čaká na realizáciu";
+        sub.finalCustomerApprovedAt=new Date().toLocaleString("sk-SK");
+        order.status="Čaká na dokončenie kontroly materiálu";
+        recordEvent(order,raw?"Odberateľ schválil surové profily":"Odberateľ schválil nový termín",sub.qty+" ks · "+(raw?"Bez lakovania":"Termín "+sub.deliveryDate),order.role);
+      }
+      render();
+    });
     target.querySelectorAll(".portalAcceptSub,.portalRejectSub").forEach(btn=>btn.onclick=()=>{
       const sub=(order.substitutions||[]).find(x=>x.requestCode===btn.dataset.code);if(!sub)return;
       if(btn.classList.contains("portalAcceptSub")){
@@ -1006,9 +1024,9 @@ function initPortal(){
           if(!date||!date.trim())return alert("Pri lakovaní musí LANGAS uviesť nový termín dodania.");
           sub.deliveryDate=date.trim();
         }
-        sub.status="Schválená – čaká na realizáciu";recordEvent(order,"LANGAS schválil zámenu",sub.qty+" ks · "+(sub.delivery==="raw"?"Dodať surové":"Lakovanie, termín "+sub.deliveryDate),"admin");sub.langasApprovedAt=new Date().toLocaleString("sk-SK");
+        sub.status=sub.delivery==="paint"?"Čaká na konečné potvrdenie odberateľa":"Schválená – čaká na realizáciu";recordEvent(order,sub.delivery==="paint"?"LANGAS navrhol nový termín":"LANGAS schválil dodanie surových profilov",sub.qty+" ks · "+(sub.delivery==="raw"?"Dodať surové":"Lakovanie, termín "+sub.deliveryDate),"admin");sub.langasApprovedAt=new Date().toLocaleString("sk-SK");
       }else {sub.status="Zamietnutá";recordEvent(order,"LANGAS zamietol zámenu",sub.requestCode+" → "+sub.altCode,"admin")}
-      order.status="Čaká na dokončenie kontroly materiálu";render();
+      order.status=sub.status==="Čaká na konečné potvrdenie odberateľa"?"Čaká na konečné rozhodnutie odberateľa":"Čaká na dokončenie kontroly materiálu";render();
     });
   });
   el("portalInbox").querySelectorAll(".portalApprove").forEach(b=>b.onclick=()=>{const order=portalState.orders[Number(b.dataset.i)];const shortage=availability(order.lines).reduce((s,x)=>s+x.missing,0);const coverage=approvedCoverage(order).reduce((s,x)=>s+x.valid,0);if(shortage>coverage){alert("Objednávku nemožno potvrdiť: chýba "+(shortage-coverage)+" ks bez schválenej dostupnej náhrady.");return}if(shortage){order.status=(order.substitutions||[]).some(s=>s.status==="Schválená – čaká na realizáciu"&&s.delivery==="paint")?"Zámena schválená – čaká na lakovanie (test)":"Zámena schválená – dodať surové (test)";recordEvent(order,"Objednávka prijatá s náhradou",order.status,"admin");render();return}order.status="Prijatá na spracovanie (test)";recordEvent(order,"Objednávka prijatá na spracovanie","Skladová kontrola úspešná","admin");render()});
