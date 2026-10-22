@@ -930,7 +930,7 @@ function initPortal(){
  };
  const approvedCoverage=order=>{
   const used=new Map();
-  return (order.substitutions||[]).filter(s=>s.status==="Schválená – čaká na realizáciu").map(s=>{
+  return (order.substitutions||[]).filter(s=>s.status==="Schválená – čaká na realizáciu"&&s.delivery).map(s=>{
    const p=P.find(x=>x.code===s.altCode),available=p?Math.max(0,p.qty-reservedFor(p.code)):0;
    const allocated=used.get(s.altCode)||0,valid=Math.min(s.qty,Math.max(0,available-allocated));
    used.set(s.altCode,allocated+valid);return {...s,valid};
@@ -963,10 +963,10 @@ function initPortal(){
       const options=substituteOptions({code:x.code});
       const current=(order.substitutions||[]).find(s=>s.requestCode===x.code);
       return '<div class="card"><b>'+safe(x.profileCode+' · '+x.name)+'</b><p>Požadovaná farba: '+safe(x.color)+' · Chýba '+x.missing+' ks</p>'+
-       (current?'<p><b>Návrh:</b> '+safe(current.altCode)+' · '+current.qty+' ks · '+safe(current.status)+'</p>':'')+
+       (current?'<p><b>Návrh:</b> '+safe(current.altCode)+' · '+current.qty+' ks · '+safe(current.status)+'</p>'+(current.status==="Čaká na rozhodnutie odberateľa"&&role.value===order.role?'<label>Spôsob dodania náhradných profilov</label><select class="portalDelivery" data-code="'+safe(x.code)+'"><option value="raw">Dodať surové, bez lakovania</option><option value="paint">Nalakovať na požadovanú farbu – neskorší termín</option></select><button class="portalCustomerAgree" data-code="'+safe(x.code)+'">Súhlasím s náhradou</button> <button class="portalCustomerDecline" data-code="'+safe(x.code)+'">Odmietnuť náhradu</button>':''):'')+
        (role.value==="admin"&&options.length?'<label>Náhradný skladový profil</label><select class="portalSubChoice" data-code="'+safe(x.code)+'">'+options.map(y=>'<option value="'+safe(y.code)+'">'+safe(y.profileCode+' · '+y.color+' · '+y.free+' ks voľných')+'</option>').join("")+'</select><label>Množstvo na zámenu</label><input class="portalSubQty" data-code="'+safe(x.code)+'" type="number" min="1" max="'+x.missing+'" value="'+x.missing+'"><button class="portalPropose" data-code="'+safe(x.code)+'">Odoslať návrh na schválenie</button>':'')+'</div>';
     }).join("");
-    const approvals=(order.substitutions||[]).map(s=>'<p><b>'+safe(s.requestCode)+'</b> → '+safe(s.altCode)+' · '+s.qty+' ks · '+safe(s.status)+(role.value==="admin"&&s.status==="Čaká na schválenie"?'<button class="portalAcceptSub" data-code="'+safe(s.requestCode)+'">Schváliť</button> <button class="portalRejectSub" data-code="'+safe(s.requestCode)+'">Zamietnuť</button>':'')+'</p>').join("");
+    const approvals=(order.substitutions||[]).map(s=>'<p><b>'+safe(s.requestCode)+'</b> → '+safe(s.altCode)+' · '+s.qty+' ks · '+safe(s.status)+(role.value==="admin"&&s.status==="Odberateľ súhlasil – čaká na potvrdenie LANGAS"?'<button class="portalAcceptSub" data-code="'+safe(s.requestCode)+'">Schváliť</button> <button class="portalRejectSub" data-code="'+safe(s.requestCode)+'">Zamietnuť</button>':'')+'</p>').join("");
     const table=availabilityMessage(order.lines)+'<div class="scroll"><table><tr><th>Kód profilu</th><th>Názov</th><th>Farba</th><th>Dĺžka</th><th>Objednané</th><th>Voľné</th><th>Chýba</th></tr>'+availability(order.lines).map(x=>'<tr><td>'+safe(x.profileCode)+'</td><td>'+safe(x.name)+'</td><td>'+safe(x.color)+'</td><td>'+x.length+' mm</td><td>'+x.qty+' ks</td><td>'+x.free+' ks</td><td'+(x.missing?' style="background:#fff2a8;color:#604600;font-weight:bold"':'')+'>'+(x.missing?x.missing+' ks':'OK')+'</td></tr>').join("")+'</table></div>';
     const target=b.closest("#portalInbox")?document.getElementById("portalOrderDetailAdmin"):document.getElementById("portalOrderDetailCustomer");
     target.innerHTML='<div class="card"><h3>Objednávka '+safe(order.id)+'</h3><p>Stav: '+safe(order.status)+' · '+safe(order.created||"Test")+'</p>'+table+'<p><b>Spolu: '+order.lines.reduce((s,x)=>s+x.qty,0)+' ks tyčí</b></p>'+(shortages.length?'<h4>Návrh zámeny chýbajúcich profilov</h4>'+proposals:'')+(approvals?'<h4>Schvaľovanie</h4>'+approvals:'')+'<p class="muted">Zámena farby môže vyžadovať lakovanie. Schválenie je testovacie; materiál sa nerezervuje ani neodpisuje.</p></div>';
@@ -975,20 +975,35 @@ function initPortal(){
       const qty=Number(qtyEl.value),short=availability(order.lines).find(x=>x.code===code),alt=substituteOptions({code}).find(x=>x.code===choice.value);
       if(!short||!alt||!Number.isInteger(qty)||qty<1||qty>short.missing||qty>alt.free)return alert("Neplatná náhrada alebo množstvo.");
       order.substitutions=order.substitutions||[];order.substitutions=order.substitutions.filter(x=>x.requestCode!==code);
-      order.substitutions.push({requestCode:code,altCode:alt.code,qty,status:"Čaká na schválenie"});
-      order.status="Čaká na schválenie zámeny";render();alert("Návrh zámeny bol vytvorený na schválenie. Materiál sa nemení.");
+      order.substitutions.push({requestCode:code,altCode:alt.code,qty,status:"Čaká na rozhodnutie odberateľa",delivery:null,deliveryDate:null});
+      order.status="Čaká na rozhodnutie odberateľa";render();alert("Návrh zámeny bol vytvorený na schválenie. Materiál sa nemení.");
+    });
+    target.querySelectorAll(".portalCustomerAgree,.portalCustomerDecline").forEach(btn=>btn.onclick=()=>{
+      if(role.value!==order.role)return;
+      const sub=(order.substitutions||[]).find(x=>x.requestCode===btn.dataset.code&&x.status==="Čaká na rozhodnutie odberateľa");if(!sub)return;
+      if(btn.classList.contains("portalCustomerDecline")){sub.status="Odberateľ odmietol";order.status="Čaká na nové riešenie";render();return}
+      const delivery=target.querySelector('.portalDelivery[data-code="'+btn.dataset.code+'"]').value;
+      if(!confirm(delivery==="raw"?"Súhlasíš s dodaním náhradných profilov v surovom stave?":"Súhlasíš s lakovaním náhradných profilov a neskorším termínom dodania?"))return;
+      sub.delivery=delivery;sub.status="Odberateľ súhlasil – čaká na potvrdenie LANGAS";sub.customerApprovedAt=new Date().toLocaleString("sk-SK");
+      order.status="Čaká na potvrdenie zámeny LANGAS";render();
     });
     target.querySelectorAll(".portalAcceptSub,.portalRejectSub").forEach(btn=>btn.onclick=()=>{
       const sub=(order.substitutions||[]).find(x=>x.requestCode===btn.dataset.code);if(!sub)return;
       if(btn.classList.contains("portalAcceptSub")){
         const p=P.find(x=>x.code===sub.altCode);
         if(!p||Math.max(0,p.qty-reservedFor(p.code))<sub.qty)return alert("Náhradný profil už nie je v potrebnom množstve dostupný.");
-        sub.status="Schválená – čaká na realizáciu";
+        if(sub.status!=="Odberateľ súhlasil – čaká na potvrdenie LANGAS"||!sub.delivery)return alert("Najprv musí rozhodnúť odberateľ.");
+        if(sub.delivery==="paint"){
+          const date=prompt("Zadaj predpokladaný termín dodania nalakovaných profilov (napr. 15.11.2026):","");
+          if(!date||!date.trim())return alert("Pri lakovaní musí LANGAS uviesť nový termín dodania.");
+          sub.deliveryDate=date.trim();
+        }
+        sub.status="Schválená – čaká na realizáciu";sub.langasApprovedAt=new Date().toLocaleString("sk-SK");
       }else sub.status="Zamietnutá";
       order.status="Čaká na dokončenie kontroly materiálu";render();
     });
   });
-  el("portalInbox").querySelectorAll(".portalApprove").forEach(b=>b.onclick=()=>{const order=portalState.orders[Number(b.dataset.i)];const shortage=availability(order.lines).reduce((s,x)=>s+x.missing,0);const coverage=approvedCoverage(order).reduce((s,x)=>s+x.valid,0);if(shortage>coverage){alert("Objednávku nemožno potvrdiť: chýba "+(shortage-coverage)+" ks bez schválenej dostupnej náhrady.");return}if(shortage){order.status="Zámena schválená – čaká na lakovanie / realizáciu (test)";render();return}order.status="Prijatá na spracovanie (test)";render()});
+  el("portalInbox").querySelectorAll(".portalApprove").forEach(b=>b.onclick=()=>{const order=portalState.orders[Number(b.dataset.i)];const shortage=availability(order.lines).reduce((s,x)=>s+x.missing,0);const coverage=approvedCoverage(order).reduce((s,x)=>s+x.valid,0);if(shortage>coverage){alert("Objednávku nemožno potvrdiť: chýba "+(shortage-coverage)+" ks bez schválenej dostupnej náhrady.");return}if(shortage){order.status=(order.substitutions||[]).some(s=>s.status==="Schválená – čaká na realizáciu"&&s.delivery==="paint")?"Zámena schválená – čaká na lakovanie (test)":"Zámena schválená – dodať surové (test)";render();return}order.status="Prijatá na spracovanie (test)";render()});
  };
  role.onchange=render;el("portalSearch").oninput=render;el("portalSystem").onchange=render;
  el("portalConfigurator").onclick=()=>{document.querySelector('.module[data-target="orders"]').click()};
