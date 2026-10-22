@@ -936,6 +936,14 @@ function initPortal(){
    used.set(s.altCode,allocated+valid);return {...s,valid};
   });
  };
+ const recordEvent=(order,title,detail,actor)=>{
+  order.history=order.history||[];
+  order.history.push({time:new Date().toLocaleString("sk-SK"),title,detail,actor:actor||role.value});
+ };
+ const renderTimeline=order=>{
+  const events=order.history||[];
+  return '<section class="portalTimeline"><h4>Časová os objednávky</h4>'+events.map(e=>'<div class="portalEvent"><span class="portalEventDot"></span><div><small>'+safe(e.time)+' · '+safe(e.actor==="admin"?"LANGAS":e.actor==="partner"?"Vybraný odberateľ":e.actor==="customer"?"Odberateľ":"Systém")+'</small><div><b>'+safe(e.title)+'</b></div><div>'+safe(e.detail||"")+'</div></div></div>').join("")+'</section>';
+ };
  const render=()=>{
   portalState.role=role.value;const canStock=role.value!=="customer",isAdmin=role.value==="admin";
   stockCard.classList.toggle("hidden",!canStock);internal.classList.toggle("hidden",!isAdmin);
@@ -969,7 +977,7 @@ function initPortal(){
     const approvals=(order.substitutions||[]).map(s=>'<p><b>'+safe(s.requestCode)+'</b> → '+safe(s.altCode)+' · '+s.qty+' ks · '+safe(s.status)+(role.value==="admin"&&s.status==="Odberateľ súhlasil – čaká na potvrdenie LANGAS"?'<button class="portalAcceptSub" data-code="'+safe(s.requestCode)+'">Schváliť</button> <button class="portalRejectSub" data-code="'+safe(s.requestCode)+'">Zamietnuť</button>':'')+'</p>').join("");
     const table=availabilityMessage(order.lines)+'<div class="scroll"><table><tr><th>Kód profilu</th><th>Názov</th><th>Farba</th><th>Dĺžka</th><th>Objednané</th><th>Voľné</th><th>Chýba</th></tr>'+availability(order.lines).map(x=>'<tr><td>'+safe(x.profileCode)+'</td><td>'+safe(x.name)+'</td><td>'+safe(x.color)+'</td><td>'+x.length+' mm</td><td>'+x.qty+' ks</td><td>'+x.free+' ks</td><td'+(x.missing?' style="background:#fff2a8;color:#604600;font-weight:bold"':'')+'>'+(x.missing?x.missing+' ks':'OK')+'</td></tr>').join("")+'</table></div>';
     const target=b.closest("#portalInbox")?document.getElementById("portalOrderDetailAdmin"):document.getElementById("portalOrderDetailCustomer");
-    target.innerHTML='<div class="card"><h3>Objednávka '+safe(order.id)+'</h3><p>Stav: '+safe(order.status)+' · '+safe(order.created||"Test")+'</p>'+table+'<p><b>Spolu: '+order.lines.reduce((s,x)=>s+x.qty,0)+' ks tyčí</b></p>'+(shortages.length?'<h4>Návrh zámeny chýbajúcich profilov</h4>'+proposals:'')+(approvals?'<h4>Schvaľovanie</h4>'+approvals:'')+'<p class="muted">Zámena farby môže vyžadovať lakovanie. Schválenie je testovacie; materiál sa nerezervuje ani neodpisuje.</p></div>';
+    target.innerHTML='<div class="card"><h3>Objednávka '+safe(order.id)+'</h3><p>Stav: '+safe(order.status)+' · '+safe(order.created||"Test")+'</p>'+table+'<p><b>Spolu: '+order.lines.reduce((s,x)=>s+x.qty,0)+' ks tyčí</b></p>'+(shortages.length?'<h4>Návrh zámeny chýbajúcich profilov</h4>'+proposals:'')+(approvals?'<h4>Schvaľovanie</h4>'+approvals:'')+renderTimeline(order)+'<p class="muted">Zámena farby môže vyžadovať lakovanie. Schválenie je testovacie; materiál sa nerezervuje ani neodpisuje.</p></div>';
     target.querySelectorAll(".portalPropose").forEach(btn=>btn.onclick=()=>{
       const code=btn.dataset.code,choice=target.querySelector('.portalSubChoice[data-code="'+code+'"]'),qtyEl=target.querySelector('.portalSubQty[data-code="'+code+'"]');
       const qty=Number(qtyEl.value),short=availability(order.lines).find(x=>x.code===code),alt=substituteOptions({code}).find(x=>x.code===choice.value);
