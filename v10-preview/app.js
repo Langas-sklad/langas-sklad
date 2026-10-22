@@ -923,7 +923,7 @@ function initPortal(){
   el("portalRoleTitle").textContent=isAdmin?"Administrácia odberateľov":canStock?"Odberateľ s prístupom k skladu":"Odberateľ – konfigurátor";
   el("portalRoleHint").textContent=canStock?"Povolené zobrazenie voľných zásob a objednávanie celých tyčí.":"Skladové zásoby sú pre túto rolu skryté.";
   const own=portalState.orders.filter(x=>isAdmin||x.role===role.value);
-  el("portalMyOrders").innerHTML=own.length?own.map(x=>'<p><b>'+x.id+'</b> · '+x.status+' · '+x.lines.length+' položiek</p>').join(""):'<p class="muted">Zatiaľ bez objednávok.</p>';
+  el("portalMyOrders").innerHTML=own.length?own.map(x=>'<p><b>'+x.id+'</b> · '+x.status+' · '+x.lines.length+' položiek <button class="portalView" data-id="'+safe(x.id)+'">Zobraziť</button></p>').join(""):'<p class="muted">Zatiaľ bez objednávok.</p>';
   if(canStock){
    const systems=[...new Set(catalog().flatMap(x=>x.systems||[x.system]).filter(Boolean))];
    const current=el("portalSystem").value;
@@ -935,13 +935,23 @@ function initPortal(){
    el("portalProduct").innerHTML=visible.map(x=>'<option value="'+safe(x.code)+'">'+safe(label(x))+' · voľné '+x.free+' ks</option>').join("");
   }
   el("portalBasket").innerHTML=portalState.cart.length?'<h4>Košík</h4>'+portalState.cart.map(x=>'<p>'+safe(x.name)+' · '+x.qty+' ks</p>').join(""):'<p class="muted">Košík je prázdny.</p>';
-  if(isAdmin)el("portalInbox").innerHTML=portalState.orders.length?portalState.orders.map((x,i)=>'<p><b>'+x.id+'</b> · '+x.lines.length+' položiek · '+x.status+' <button class="portalApprove" data-i="'+i+'" '+(x.status!=="Čaká na kontrolu"?"disabled":"")+'>Potvrdiť prijatie</button></p>').join(""):'<p class="muted">Žiadne prijaté objednávky.</p>';
+  if(isAdmin)el("portalInbox").innerHTML=portalState.orders.length?portalState.orders.map((x,i)=>'<p><b>'+x.id+'</b> · '+x.lines.length+' položiek · '+x.status+' <button class="portalView" data-id="'+safe(x.id)+'">Zobraziť</button> <button class="portalApprove" data-i="'+i+'" '+(x.status!=="Čaká na kontrolu"?"disabled":"")+'>Potvrdiť prijatie</button></p>').join(""):'<p class="muted">Žiadne prijaté objednávky.</p>';
+  document.querySelectorAll(".portalView").forEach(b=>b.onclick=()=>{
+    const order=portalState.orders.find(x=>x.id===b.dataset.id);
+    if(!order)return;
+    const table='<div class="scroll"><table><tr><th>Kód profilu</th><th>Názov</th><th>Farba</th><th>Dĺžka</th><th>Objednané</th></tr>'+order.lines.map(line=>{
+      const p=P.find(x=>x.code===line.code);
+      return '<tr><td>'+safe(p?.profileCode||line.code)+'</td><td>'+safe(p?.name||line.name)+'</td><td>'+safe(p?.color||"—")+'</td><td>'+safe(p?.length||"—")+' mm</td><td>'+line.qty+' ks</td></tr>';
+    }).join("")+'</table></div>';
+    const target=b.closest("#portalInbox")?document.getElementById("portalOrderDetailAdmin"):document.getElementById("portalOrderDetailCustomer");
+    target.innerHTML='<div class="card"><h3>Objednávka '+safe(order.id)+'</h3><p>Stav: '+safe(order.status)+' · '+safe(order.created||"Test")+'</p>'+table+'<p><b>Spolu: '+order.lines.reduce((s,x)=>s+x.qty,0)+' ks tyčí</b></p></div>';
+  });
   el("portalInbox").querySelectorAll(".portalApprove").forEach(b=>b.onclick=()=>{portalState.orders[Number(b.dataset.i)].status="Prijatá na spracovanie (test)";render()});
  };
  role.onchange=render;el("portalSearch").oninput=render;el("portalSystem").onchange=render;
  el("portalConfigurator").onclick=()=>{document.querySelector('.module[data-target="orders"]').click()};
  el("portalAdd").onclick=()=>{const code=el("portalProduct").value,qty=Number(el("portalQty").value),p=P.find(x=>x.code===code);if(!p||!Number.isInteger(qty)||qty<1)return alert("Vyber profil a platný počet kusov.");portalState.cart.push({code,name:label(p),qty});render()};
- el("portalSend").onclick=()=>{if(!portalState.cart.length)return alert("Košík je prázdny.");const id="TEST-MAT-"+String(portalState.orders.length+1).padStart(3,"0");portalState.orders.push({id,role:role.value,lines:portalState.cart.map(x=>({...x})),status:"Čaká na kontrolu"});portalState.cart=[];render();alert("Testovacia objednávka "+id+" bola pridaná do internej evidencie. Sklad sa nemení.")};
+ el("portalSend").onclick=()=>{if(!portalState.cart.length)return alert("Košík je prázdny.");const id="TEST-MAT-"+String(portalState.orders.length+1).padStart(3,"0");portalState.orders.push({id,role:role.value,lines:portalState.cart.map(x=>({...x})),status:"Čaká na kontrolu",created:new Date().toLocaleString("sk-SK")});portalState.cart=[];render();alert("Testovacia objednávka "+id+" bola pridaná do internej evidencie. Sklad sa nemení.")};
  render();
 }
 initPortal();
