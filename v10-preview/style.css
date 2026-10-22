@@ -114,3 +114,6 @@ input:focus,select:focus,textarea:focus{outline:2px solid #83b2ff!important;outl
 .systemFilters button,.actions button{margin-bottom:4px}
 @media(max-width:800px){header{padding:13px 15px;display:block}header h1{font-size:20px}main{padding:12px!important}.sideMenu{padding:8px!important}.sideMenu .module{font-size:12px!important}.grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.card{padding:12px!important}nav{overflow-x:auto;flex-wrap:nowrap}nav button{white-space:nowrap}table{min-width:650px}}
 @media print{header,.sideMenu,nav{display:none!important}body{background:#fff!important}.card{box-shadow:none!important}}
+
+/* V10.20 customer portal */
+.portalHead{display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap}.portalHead>div:last-child{min-width:280px}.portalGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:12px 0}.portalGrid .card{margin:0}.portalGrid>div{min-width:0}#portalStockTable{margin:14px 0;max-height:370px;overflow:auto}#portalBasket{margin-top:12px}#portalRoleHint{margin-bottom:14px}@media(max-width:720px){.portalGrid{grid-template-columns:1fr}.portalHead>div:last-child{width:100%}}
