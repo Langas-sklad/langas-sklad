@@ -13,7 +13,7 @@ function profileName(code,fallback=""){
  return names.length===1?names[0]:(fallback||"Názov treba overiť v katalógu");
 }
 function profileDisplay(code,fallback=""){return code+" · "+profileName(code,fallback)}
-function show(id){if(id==="shipped")renderShipped();document.querySelectorAll("main>section").forEach(x=>x.classList.add("hidden"));$("#"+id).classList.remove("hidden");document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.p===id));scrollTo(0,0)}document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>show(b.dataset.p));$("#printBtn").onclick=()=>print();
+function show(id){if(id==="shipped")renderShipped();if(id==="jobs")renderPortalProduction();document.querySelectorAll("main>section").forEach(x=>x.classList.add("hidden"));$("#"+id).classList.remove("hidden");document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.p===id));scrollTo(0,0)}document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>show(b.dataset.p));$("#printBtn").onclick=()=>print();
 function reservedFor(code){return R.filter(r=>r.code===code&&r.kind!=="cut").reduce((s,r)=>s+r.qty,0)}
 function reservedCutFor(id){return R.filter(r=>r.kind==="cut"&&r.cutId===id).reduce((s,r)=>s+r.qty,0)}
 function render(){$("#bars").textContent=P.reduce((a,x)=>a+x.qty,0);$("#cutCount").textContent=C.filter(x=>x.status==="DOSTUPNÝ").reduce((a,x)=>a+x.qty,0);$("#moves").textContent=H.length;$("#stockT").innerHTML='<table><tr><th>Kód</th><th>Názov</th><th>Farba</th><th>Dĺžka</th><th>Fyzicky</th><th>Rezervované</th><th>Voľné</th></tr>'+P.filter(x=>stockSystem==="all"||(x.systems||[x.system]).includes(stockSystem)).map(x=>{let rv=reservedFor(x.code),free=Math.max(0,x.qty-rv);return `<tr><td><b>${x.code}</b></td><td>${x.name}</td><td>${x.color}</td><td>${x.length}</td><td>${x.qty}</td><td><b>${rv}</b></td><td class="${free<=0&&rv>0?"bad":"ok"}"><b>${free}</b></td></tr>`}).join('')+'</table>';$("#cutsT").innerHTML='<table><tr><th>ID</th><th>Profil</th><th>Názov profilu</th><th>Dĺžka</th><th>Fyzicky</th><th>Rezervované</th><th>Voľné</th><th>Stav</th></tr>'+C.filter(x=>cutSystem==="all"||(x.systems||[x.system]).includes(cutSystem)).map(x=>{let rv=reservedCutFor(x.id),free=Math.max(0,x.qty-rv),p=findP(x.code),nm=x.name||(p?p.name:"—"),cls=free>0?"stock-ok":"stock-bad";return `<tr><td>${x.id}</td><td>${x.code}</td><td>${nm}</td><td>${x.length}</td><td>${x.qty}</td><td><b>${rv}</b></td><td class="${cls}"><b>${free}</b></td><td><span class="${cls}">${free>0?"DOSTUPNÝ":"REZERVOVANÝ"}</span></td></tr>`}).join('')+'</table>';$("#histT").innerHTML=H.length?'<table><tr><th>Čas</th><th>Typ</th><th>Profil</th><th>Farba</th><th>Ks</th><th>Dĺžka</th><th>Zákazka</th><th>Akcia</th></tr>'+H.map((x,i)=>`<tr><td>${x.time}</td><td>${x.type}</td><td>${x.code}</td><td>${x.color||"—"}</td><td>${x.qty}</td><td>${x.length}</td><td>${x.job}</td><td>${x.cancelled?'<span class="muted">ZRUŠENÉ</span>':'<button class="gray cancelMove" data-i="'+i+'">Zrušiť</button>'}</td></tr>`).join('')+'</table>':'Bez pohybov.';setTimeout(()=>document.querySelectorAll(".cancelMove").forEach(b=>b.onclick=()=>cancelMovement(+b.dataset.i)),0);$("#jobT").innerHTML='<table><tr><th>Profil</th><th>Názov</th><th>Dĺžka</th><th>Ks</th></tr>'+D.famus.map(x=>`<tr><td>${x.code}</td><td>${x.name}</td><td>${x.length}</td><td>${x.qty}</td></tr>`).join('')+'</table>'}
@@ -912,6 +912,16 @@ function initFreeOptimizer(){
 initFreeOptimizer();
 
 const portalState={role:"customer",cart:[],orders:[]};
+function renderPortalProduction(){
+ const host=document.getElementById("portalProductionJobs");if(!host)return;
+ const jobs=portalState.orders.filter(o=>o.productionJob);
+ host.innerHTML=jobs.length?jobs.map(o=>{
+  const j=o.productionJob;
+  const lines=j.lines.map(x=>'<tr><td>'+safe(x.code)+'</td><td>'+safe(x.name)+'</td><td>'+safe(x.color)+'</td><td>'+x.length+' mm</td><td>'+x.qty+' ks</td><td>'+safe(x.operation)+'</td></tr>').join("");
+  return '<div class="card"><h3>'+safe(j.id)+' · '+safe(o.id)+'</h3><p><b>Stav:</b> '+safe(j.status)+' · <b>Odberateľ:</b> '+safe(o.role)+' · <b>Vytvorené:</b> '+safe(j.created)+'</p><div class="scroll"><table><tr><th>Kód</th><th>Názov</th><th>Farba</th><th>Dĺžka</th><th>Ks</th><th>Operácia</th></tr>'+lines+'</table></div><p class="muted">Testovacia výrobná zákazka. Rezervácia, odpis a expedícia zatiaľ nie sú aktivované.</p></div>';
+ }).join(""):'<p class="muted">Zatiaľ žiadne odberateľské zákazky odovzdané do výroby.</p>';
+}
+
 function initPortal(){
  const el=id=>document.getElementById(id);
  const role=el("portalRole"),stockCard=el("portalStockCard"),internal=el("portalInternal");
@@ -935,6 +945,28 @@ function initPortal(){
    const allocated=used.get(s.altCode)||0,valid=Math.min(s.qty,Math.max(0,available-allocated));
    used.set(s.altCode,allocated+valid);return {...s,valid};
   });
+ };
+ const sendToProduction=order=>{
+  if(order.productionJob)return;
+  const shortage=availability(order.lines).reduce((s,x)=>s+x.missing,0);
+  const cover=approvedCoverage(order).reduce((s,x)=>s+x.valid,0);
+  if(shortage>cover)return;
+  const approved=(order.substitutions||[]).filter(s=>s.status==="Schválená – čaká na realizáciu");
+  const used=new Map();
+  const lines=[];
+  for(const x of availability(order.lines)){
+   const base=Math.min(x.qty,x.free);
+   if(base)lines.push({code:x.profileCode,name:x.name,color:x.color,length:x.length,qty:base,operation:"Pripraviť zo skladu"});
+   for(const sub of approved.filter(s=>s.requestCode===x.code)){
+    const p=P.find(y=>y.code===sub.altCode);if(!p)continue;
+    const n=Math.min(sub.qty,Math.max(0,p.qty-reservedFor(p.code)-(used.get(p.code)||0)));
+    if(!n)continue;used.set(p.code,(used.get(p.code)||0)+n);
+    lines.push({code:p.profileCode||p.code,name:p.name,color:p.color,length:p.length,qty:n,operation:sub.delivery==="paint"?"Odoslať do lakovne – "+x.color+"; termín "+sub.deliveryDate:"Dodať v surovom stave"});
+   }
+  }
+  order.productionJob={id:"VYR-"+order.id,status:approved.some(s=>s.delivery==="paint")?"Čaká na lakovanie":"Čaká na prípravu a expedíciu",created:new Date().toLocaleString("sk-SK"),lines};
+  recordEvent(order,"Zákazka odovzdaná do výroby",order.productionJob.id+" · "+order.productionJob.status,"admin");
+  renderPortalProduction();
  };
  const recordEvent=(order,title,detail,actor)=>{
   order.history=order.history||[];
@@ -1029,7 +1061,7 @@ function initPortal(){
       order.status=sub.status==="Čaká na konečné potvrdenie odberateľa"?"Čaká na konečné rozhodnutie odberateľa":"Čaká na dokončenie kontroly materiálu";render();
     });
   });
-  el("portalInbox").querySelectorAll(".portalApprove").forEach(b=>b.onclick=()=>{const order=portalState.orders[Number(b.dataset.i)];const shortage=availability(order.lines).reduce((s,x)=>s+x.missing,0);const coverage=approvedCoverage(order).reduce((s,x)=>s+x.valid,0);if(shortage>coverage){alert("Objednávku nemožno potvrdiť: chýba "+(shortage-coverage)+" ks bez schválenej dostupnej náhrady.");return}if(shortage){order.status=(order.substitutions||[]).some(s=>s.status==="Schválená – čaká na realizáciu"&&s.delivery==="paint")?"Zámena schválená – čaká na lakovanie (test)":"Zámena schválená – dodať surové (test)";recordEvent(order,"Objednávka prijatá s náhradou",order.status,"admin");render();return}order.status="Prijatá na spracovanie (test)";recordEvent(order,"Objednávka prijatá na spracovanie","Skladová kontrola úspešná","admin");render()});
+  el("portalInbox").querySelectorAll(".portalApprove").forEach(b=>b.onclick=()=>{const order=portalState.orders[Number(b.dataset.i)];const shortage=availability(order.lines).reduce((s,x)=>s+x.missing,0);const coverage=approvedCoverage(order).reduce((s,x)=>s+x.valid,0);if(shortage>coverage){alert("Objednávku nemožno potvrdiť: chýba "+(shortage-coverage)+" ks bez schválenej dostupnej náhrady.");return}if(shortage){order.status=(order.substitutions||[]).some(s=>s.status==="Schválená – čaká na realizáciu"&&s.delivery==="paint")?"Zámena schválená – čaká na lakovanie (test)":"Zámena schválená – dodať surové (test)";recordEvent(order,"Objednávka prijatá s náhradou",order.status,"admin");sendToProduction(order);render();return}order.status="Prijatá na spracovanie (test)";recordEvent(order,"Objednávka prijatá na spracovanie","Skladová kontrola úspešná","admin");sendToProduction(order);render()});
  };
  role.onchange=render;el("portalSearch").oninput=render;el("portalSystem").onchange=render;
  el("portalConfigurator").onclick=()=>{document.querySelector('.module[data-target="orders"]').click()};
