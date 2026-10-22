@@ -117,3 +117,5 @@ input:focus,select:focus,textarea:focus{outline:2px solid #83b2ff!important;outl
 
 /* V10.20 customer portal */
 .portalHead{display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap}.portalHead>div:last-child{min-width:280px}.portalGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:12px 0}.portalGrid .card{margin:0}.portalGrid>div{min-width:0}#portalStockTable{margin:14px 0;max-height:370px;overflow:auto}#portalBasket{margin-top:12px}#portalRoleHint{margin-bottom:14px}@media(max-width:720px){.portalGrid{grid-template-columns:1fr}.portalHead>div:last-child{width:100%}}
+
+.portalTimeline{margin:18px 0;padding:16px;background:#f8fbff;border:1px solid #dbe6f4;border-radius:9px}.portalEvent{display:flex;gap:12px;padding:0 0 20px;position:relative}.portalEvent:not(:last-child):before{content:"";position:absolute;left:6px;top:15px;bottom:0;width:2px;background:#bfd3eb}.portalEventDot{height:14px;width:14px;border-radius:50%;background:#fff;border:3px solid #1766e8;flex:none;z-index:1}.portalEvent small{color:#7189a5}
