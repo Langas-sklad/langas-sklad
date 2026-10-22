@@ -910,5 +910,40 @@ function initFreeOptimizer(){
  render();
 }
 initFreeOptimizer();
+
+const portalState={role:"customer",cart:[],orders:[]};
+function initPortal(){
+ const el=id=>document.getElementById(id);
+ const role=el("portalRole"),stockCard=el("portalStockCard"),internal=el("portalInternal");
+ const catalog=()=>P.filter(x=>x.qty>0).map(x=>({...x,free:Math.max(0,x.qty-reservedFor(x.code))}));
+ const label=x=>(x.profileCode||x.code)+" · "+x.name+" · "+x.color+" · "+x.length+" mm";
+ const render=()=>{
+  portalState.role=role.value;const canStock=role.value!=="customer",isAdmin=role.value==="admin";
+  stockCard.classList.toggle("hidden",!canStock);internal.classList.toggle("hidden",!isAdmin);
+  el("portalRoleTitle").textContent=isAdmin?"Administrácia odberateľov":canStock?"Odberateľ s prístupom k skladu":"Odberateľ – konfigurátor";
+  el("portalRoleHint").textContent=canStock?"Povolené zobrazenie voľných zásob a objednávanie celých tyčí.":"Skladové zásoby sú pre túto rolu skryté.";
+  const own=portalState.orders.filter(x=>isAdmin||x.role===role.value);
+  el("portalMyOrders").innerHTML=own.length?own.map(x=>'<p><b>'+x.id+'</b> · '+x.status+' · '+x.lines.length+' položiek</p>').join(""):'<p class="muted">Zatiaľ bez objednávok.</p>';
+  if(canStock){
+   const systems=[...new Set(catalog().flatMap(x=>x.systems||[x.system]).filter(Boolean))];
+   const current=el("portalSystem").value;
+   el("portalSystem").innerHTML='<option value="all">Všetky systémy</option>'+systems.map(x=>'<option value="'+safe(x)+'">'+safe(x)+'</option>').join("");
+   if(systems.includes(current))el("portalSystem").value=current;
+   const term=el("portalSearch").value.toLowerCase(),system=el("portalSystem").value;
+   const visible=catalog().filter(x=>(system==="all"||(x.systems||[x.system]).includes(system))&&label(x).toLowerCase().includes(term));
+   el("portalStockTable").innerHTML='<table><tr><th>Kód</th><th>Názov</th><th>Farba</th><th>Dĺžka</th><th>Voľné ks</th></tr>'+visible.map(x=>'<tr><td>'+safe(x.profileCode||x.code)+'</td><td>'+safe(x.name)+'</td><td>'+safe(x.color)+'</td><td>'+x.length+' mm</td><td>'+x.free+'</td></tr>').join("")+'</table>';
+   el("portalProduct").innerHTML=visible.map(x=>'<option value="'+safe(x.code)+'">'+safe(label(x))+' · voľné '+x.free+' ks</option>').join("");
+  }
+  el("portalBasket").innerHTML=portalState.cart.length?'<h4>Košík</h4>'+portalState.cart.map(x=>'<p>'+safe(x.name)+' · '+x.qty+' ks</p>').join(""):'<p class="muted">Košík je prázdny.</p>';
+  if(isAdmin)el("portalInbox").innerHTML=portalState.orders.length?portalState.orders.map((x,i)=>'<p><b>'+x.id+'</b> · '+x.lines.length+' položiek · '+x.status+' <button class="portalApprove" data-i="'+i+'" '+(x.status!=="Čaká na kontrolu"?"disabled":"")+'>Potvrdiť prijatie</button></p>').join(""):'<p class="muted">Žiadne prijaté objednávky.</p>';
+  el("portalInbox").querySelectorAll(".portalApprove").forEach(b=>b.onclick=()=>{portalState.orders[Number(b.dataset.i)].status="Prijatá na spracovanie (test)";render()});
+ };
+ role.onchange=render;el("portalSearch").oninput=render;el("portalSystem").onchange=render;
+ el("portalConfigurator").onclick=()=>{document.querySelector('.module[data-target="orders"]').click()};
+ el("portalAdd").onclick=()=>{const code=el("portalProduct").value,qty=Number(el("portalQty").value),p=P.find(x=>x.code===code);if(!p||!Number.isInteger(qty)||qty<1)return alert("Vyber profil a platný počet kusov.");portalState.cart.push({code,name:label(p),qty});render()};
+ el("portalSend").onclick=()=>{if(!portalState.cart.length)return alert("Košík je prázdny.");const id="TEST-MAT-"+String(portalState.orders.length+1).padStart(3,"0");portalState.orders.push({id,role:role.value,lines:portalState.cart.map(x=>({...x})),status:"Čaká na kontrolu"});portalState.cart=[];render();alert("Testovacia objednávka "+id+" bola pridaná do internej evidencie. Sklad sa nemení.")};
+ render();
+}
+initPortal();
 syncCards();drawOrderPreview();renderOnlineOrders();renderNewOrders();
 bindFilters();render();checkGut();syncLengthMode();
