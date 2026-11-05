@@ -21,11 +21,51 @@ function profileName(code,fallback=""){
  return names.length===1?names[0]:(fallback||"Názov treba overiť v katalógu");
 }
 function profileDisplay(code,fallback=""){return code+" · "+profileName(code,fallback)}
+
+function profileFilterKey(x){
+ const source=x.profileCode||P.find(p=>p.code===x.code)?.profileCode||x.code;
+ return profileBase(source);
+}
+function profileFilterText(x){return String(x??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("sk");}
+function filterProfileRows(rows,prefix){
+ const family=$("#"+prefix+"Profile")?.value||"all",color=$("#"+prefix+"Color")?.value||"all",length=$("#"+prefix+"Length")?.value||"all";
+ const term=profileFilterText($("#"+prefix+"Search")?.value||"").trim();
+ return rows.filter(x=>(family==="all"||profileFilterKey(x)===family)&&(color==="all"||x.color===color)&&(length==="all"||String(x.length)===length)&&(!term||profileFilterText([x.profileCode,x.code,x.name,x.color,x.length].join(" ")).includes(term)));
+}
+function syncProfileFilterOptions(prefix,rows){
+ const put=(suffix,values,label)=>{
+  const el=$("#"+prefix+suffix);if(!el)return;
+  const previous=el.value;
+  el.innerHTML='<option value="all">'+label+'</option>'+values.map(([value,text])=>'<option value="'+safe(value)+'">'+safe(text)+'</option>').join("");
+  el.value=values.some(([value])=>String(value)===previous)?previous:"all";
+ };
+ const families=new Map();for(const x of rows){const key=profileFilterKey(x);if(!families.has(key))families.set(key,key+" · "+(x.name||profileName(x.profileCode||x.code)));}
+ put("Profile",[...families].sort((a,b)=>a[0].localeCompare(b[0],"sk",{numeric:true})),"Všetky profily");
+ const family=$("#"+prefix+"Profile")?.value||"all",subset=rows.filter(x=>family==="all"||profileFilterKey(x)===family);
+ put("Color",[...new Set(subset.map(x=>x.color).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"sk")).map(x=>[x,x]),"Všetky farby / povrchy");
+ const color=$("#"+prefix+"Color")?.value||"all";
+ put("Length",[...new Set(subset.filter(x=>color==="all"||x.color===color).map(x=>Number(x.length)).filter(Number.isFinite))].sort((a,b)=>a-b).map(x=>[String(x),x+" mm"]),"Všetky dĺžky");
+}
+function profileFilterSummary(prefix,rows){
+ const el=$("#"+prefix+"FilterSummary");if(!el)return;
+ const qty=rows.reduce((s,x)=>s+(Number(x.qty)||0),0),meters=rows.reduce((s,x)=>s+(Number(x.qty)||0)*(Number(x.length)||0)/1000,0);
+ el.textContent="Zobrazené varianty: "+rows.length+" · Fyzicky: "+qty+" ks · "+meters.toLocaleString("sk-SK",{maximumFractionDigits:3})+" m";
+}
+function resetProfileFilters(prefix){
+ for(const suffix of ["Profile","Color","Length"]){const el=$("#"+prefix+suffix);if(el)el.value="all";}
+ const search=$("#"+prefix+"Search");if(search)search.value="";
+}
+function bindProfileFilters(prefix,refresh){
+ for(const suffix of ["Profile","Color","Length"]){const el=$("#"+prefix+suffix);if(el)el.onchange=refresh;}
+ const search=$("#"+prefix+"Search");if(search)search.oninput=refresh;
+ const reset=$("#"+prefix+"Reset");if(reset)reset.onclick=()=>{resetProfileFilters(prefix);refresh();};
+}
+
 function show(id){if(id==="shipped")renderShipped();if(id==="jobs")renderPortalProduction();document.querySelectorAll("main>section").forEach(x=>x.classList.add("hidden"));$("#"+id).classList.remove("hidden");document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.p===id));scrollTo(0,0)}document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>show(b.dataset.p));$("#printBtn").onclick=()=>print();
 function reservedFor(code){return R.filter(r=>r.code===code&&r.kind!=="cut").reduce((s,r)=>s+r.qty,0)}
 function reservedCutFor(id){return R.filter(r=>r.kind==="cut"&&r.cutId===id).reduce((s,r)=>s+r.qty,0)}
-function render(){$("#bars").textContent=P.reduce((a,x)=>a+x.qty,0);$("#cutCount").textContent=C.filter(x=>x.status==="DOSTUPNÝ").reduce((a,x)=>a+x.qty,0);$("#moves").textContent=H.length;$("#stockT").innerHTML='<table><tr><th>Kód</th><th>Názov</th><th>Farba</th><th>Dĺžka</th><th>Fyzicky</th><th>Rezervované</th><th>Voľné</th></tr>'+P.filter(x=>stockSystem==="all"||(x.systems||[x.system]).includes(stockSystem)).map(x=>{let rv=reservedFor(x.code),free=Math.max(0,x.qty-rv);return `<tr><td><b>${x.code}</b></td><td>${x.name}</td><td>${x.color}</td><td>${x.length}</td><td>${x.qty}</td><td><b>${rv}</b></td><td class="${free<=0&&rv>0?"bad":"ok"}"><b>${free}</b></td></tr>`}).join('')+'</table>';$("#cutsT").innerHTML='<table><tr><th>ID</th><th>Profil</th><th>Názov profilu</th><th>Dĺžka</th><th>Fyzicky</th><th>Rezervované</th><th>Voľné</th><th>Stav</th></tr>'+C.filter(x=>cutSystem==="all"||(x.systems||[x.system]).includes(cutSystem)).map(x=>{let rv=reservedCutFor(x.id),free=Math.max(0,x.qty-rv),p=findP(x.code),nm=x.name||(p?p.name:"—"),cls=free>0?"stock-ok":"stock-bad";return `<tr><td>${x.id}</td><td>${x.code}</td><td>${nm}</td><td>${x.length}</td><td>${x.qty}</td><td><b>${rv}</b></td><td class="${cls}"><b>${free}</b></td><td><span class="${cls}">${free>0?"DOSTUPNÝ":"REZERVOVANÝ"}</span></td></tr>`}).join('')+'</table>';$("#histT").innerHTML=H.length?'<table><tr><th>Čas</th><th>Typ</th><th>Profil</th><th>Farba</th><th>Ks</th><th>Dĺžka</th><th>Zákazka</th><th>Akcia</th></tr>'+H.map((x,i)=>`<tr><td>${x.time}</td><td>${x.type}</td><td>${x.code}</td><td>${x.color||"—"}</td><td>${x.qty}</td><td>${x.length}</td><td>${x.job}</td><td>${x.cancelled?'<span class="muted">ZRUŠENÉ</span>':'<button class="gray cancelMove" data-i="'+i+'">Zrušiť</button>'}</td></tr>`).join('')+'</table>':'Bez pohybov.';setTimeout(()=>document.querySelectorAll(".cancelMove").forEach(b=>b.onclick=()=>cancelMovement(+b.dataset.i)),0);$("#jobT").innerHTML='<table><tr><th>Profil</th><th>Názov</th><th>Dĺžka</th><th>Ks</th></tr>'+D.famus.map(x=>`<tr><td>${x.code}</td><td>${x.name}</td><td>${x.length}</td><td>${x.qty}</td></tr>`).join('')+'</table>'}
-function normalizeColor(s){return String(s||"").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^A-Z0-9]/g,"")}function bindFilters(){document.querySelectorAll(".sys").forEach(b=>b.onclick=()=>{stockSystem=b.dataset.system;document.querySelectorAll(".sys").forEach(x=>x.classList.toggle("activeSys",x===b));render()});document.querySelectorAll(".sysCut").forEach(b=>b.onclick=()=>{cutSystem=b.dataset.system;document.querySelectorAll(".sysCut").forEach(x=>x.classList.toggle("activeSys",x===b));render()});document.querySelectorAll(".module").forEach(b=>b.onclick=()=>{document.querySelectorAll(".module").forEach(x=>x.classList.toggle("activeModule",x===b));show(b.dataset.target)})}
+function render(){const stockCategory=P.filter(x=>stockSystem==="all"||(x.systems||[x.system]).includes(stockSystem));const cutCategory=C.filter(x=>cutSystem==="all"||(x.systems||[x.system]).includes(cutSystem));syncProfileFilterOptions("stock",stockCategory);syncProfileFilterOptions("cut",cutCategory);const stockVisible=filterProfileRows(stockCategory,"stock"),cutVisible=filterProfileRows(cutCategory,"cut");profileFilterSummary("stock",stockVisible);profileFilterSummary("cut",cutVisible);$("#bars").textContent=P.reduce((a,x)=>a+x.qty,0);$("#cutCount").textContent=C.filter(x=>x.status==="DOSTUPNÝ").reduce((a,x)=>a+x.qty,0);$("#moves").textContent=H.length;$("#stockT").innerHTML='<table><tr><th>Kód</th><th>Názov</th><th>Farba</th><th>Dĺžka</th><th>Fyzicky</th><th>Rezervované</th><th>Voľné</th></tr>'+stockVisible.map(x=>{let rv=reservedFor(x.code),free=Math.max(0,x.qty-rv);return `<tr><td><b>${x.code}</b></td><td>${x.name}</td><td>${x.color}</td><td>${x.length}</td><td>${x.qty}</td><td><b>${rv}</b></td><td class="${free<=0&&rv>0?"bad":"ok"}"><b>${free}</b></td></tr>`}).join('')+'</table>'+(stockVisible.length?'':'<p class="muted">Žiadne profily nezodpovedajú filtrom.</p>');$("#cutsT").innerHTML='<table><tr><th>ID</th><th>Profil</th><th>Názov profilu</th><th>Farba</th><th>Dĺžka</th><th>Fyzicky</th><th>Rezervované</th><th>Voľné</th><th>Stav</th></tr>'+cutVisible.map(x=>{let rv=reservedCutFor(x.id),free=Math.max(0,x.qty-rv),p=findP(x.code),nm=x.name||(p?p.name:"—"),cls=free>0?"stock-ok":"stock-bad";return `<tr><td>${x.id}</td><td>${x.code}</td><td>${nm}</td><td>${x.color||"—"}</td><td>${x.length}</td><td>${x.qty}</td><td><b>${rv}</b></td><td class="${cls}"><b>${free}</b></td><td><span class="${cls}">${free>0?"DOSTUPNÝ":"REZERVOVANÝ"}</span></td></tr>`}).join('')+'</table>'+(cutVisible.length?'':'<p class="muted">Žiadne odrezky nezodpovedajú filtrom.</p>');$("#histT").innerHTML=H.length?'<table><tr><th>Čas</th><th>Typ</th><th>Profil</th><th>Farba</th><th>Ks</th><th>Dĺžka</th><th>Zákazka</th><th>Akcia</th></tr>'+H.map((x,i)=>`<tr><td>${x.time}</td><td>${x.type}</td><td>${x.code}</td><td>${x.color||"—"}</td><td>${x.qty}</td><td>${x.length}</td><td>${x.job}</td><td>${x.cancelled?'<span class="muted">ZRUŠENÉ</span>':'<button class="gray cancelMove" data-i="'+i+'">Zrušiť</button>'}</td></tr>`).join('')+'</table>':'Bez pohybov.';setTimeout(()=>document.querySelectorAll(".cancelMove").forEach(b=>b.onclick=()=>cancelMovement(+b.dataset.i)),0);$("#jobT").innerHTML='<table><tr><th>Profil</th><th>Názov</th><th>Dĺžka</th><th>Ks</th></tr>'+D.famus.map(x=>`<tr><td>${x.code}</td><td>${x.name}</td><td>${x.length}</td><td>${x.qty}</td></tr>`).join('')+'</table>'}
+function normalizeColor(s){return String(s||"").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^A-Z0-9]/g,"")}function bindFilters(){bindProfileFilters("stock",render);bindProfileFilters("cut",render);document.querySelectorAll(".sys").forEach(b=>b.onclick=()=>{stockSystem=b.dataset.system;document.querySelectorAll(".sys").forEach(x=>x.classList.toggle("activeSys",x===b));render()});document.querySelectorAll(".sysCut").forEach(b=>b.onclick=()=>{cutSystem=b.dataset.system;document.querySelectorAll(".sysCut").forEach(x=>x.classList.toggle("activeSys",x===b));render()});document.querySelectorAll(".module").forEach(b=>b.onclick=()=>{document.querySelectorAll(".module").forEach(x=>x.classList.toggle("activeModule",x===b));show(b.dataset.target)})}
 function parseCode(s){let a=s.trim().split("|");return a.length===3&&a[0]==="LANGAS"?{code:a[1],color:a[2]}:null}function addCut(p,len,qty){C.push({id:"ODR-"+String(C.length+1).padStart(3,"0"),code:p.code,color:p.color,length:len,qty,status:"DOSTUPNÝ"})}
 function issueOne(p,want,job,movementType="ODBER DO VÝROBY"){
  const k=5,min=500;
@@ -808,7 +848,8 @@ function initFreeOptimizer(){
  systemSelect.innerHTML=systems.map(v=>'<option value="'+safe(v)+'">'+safe(v)+'</option>').join("");
  const updateProfiles=()=>{
   const selected=systemSelect.value;
-  const items=P.filter(x=>(x.systems||[x.system]).includes(selected));
+  const profileTerm=profileFilterText($("#freeProfileSearch").value).trim();
+  const items=P.filter(x=>(x.systems||[x.system]).includes(selected)&&(!profileTerm||profileFilterText([x.profileCode,x.code,x.name].join(" ")).includes(profileTerm)));
   const unique=new Map(items.map(x=>[x.profileCode||x.code,{code:x.profileCode||x.code,name:x.name}]));
   const prev=ps.value;
   ps.innerHTML=[...unique.values()].sort((a,b)=>a.code.localeCompare(b.code,"sk")).map(x=>'<option value="'+safe(x.code)+'">'+safe(profileDisplay(x.code,x.name))+'</option>').join("");
@@ -825,7 +866,8 @@ function initFreeOptimizer(){
   const stock=P.filter(x=>(x.profileCode||x.code)===ps.value&&x.color===$("#freeColor").value);
   $("#freeBar").innerHTML=[...new Set(stock.map(x=>x.length))].sort((a,b)=>a-b).map(n=>'<option value="'+n+'">'+n+' mm</option>').join("");
  };
- systemSelect.onchange=updateProfiles;ps.onchange=update;$("#freeColor").onchange=updateLengths;updateProfiles();
+ $("#freeProfileSearch").oninput=updateProfiles;
+ systemSelect.onchange=()=>{$("#freeProfileSearch").value="";updateProfiles();};ps.onchange=update;$("#freeColor").onchange=updateLengths;updateProfiles();
  let editIndex=-1;
  let freePrintGroups=[];
  const invalidate=()=>{$("#freeResult").innerHTML="";freePrintGroups=[];};
@@ -834,7 +876,7 @@ function initFreeOptimizer(){
   $("#freeCutsList").querySelectorAll(".freeEdit").forEach(b=>b.onclick=()=>{
    const i=Number(b.dataset.index),x=freeCuts[i];if(!x)return;
    const entry=P.find(p=>(p.profileCode||p.code)===x.profile&&p.color===x.color);
-   if(entry){const category=(entry.systems||[entry.system])[0];if([...systemSelect.options].some(o=>o.value===category))systemSelect.value=category;updateProfiles();ps.value=x.profile;update();$("#freeColor").value=x.color;updateLengths()}
+   if(entry){const category=(entry.systems||[entry.system])[0];if([...systemSelect.options].some(o=>o.value===category))systemSelect.value=category;$("#freeProfileSearch").value="";updateProfiles();ps.value=x.profile;update();$("#freeColor").value=x.color;updateLengths()}
    $("#freeCut").value=x.length;$("#freeQty").value=x.qty;editIndex=i;
    $("#freeAdd").textContent="Uložiť zmeny";$("#freeCancelEdit").hidden=false;
    $("#freeCut").focus();
@@ -877,7 +919,7 @@ function initFreeOptimizer(){
   ];
   for(const [profile,length,qty] of rows)freeCuts.push({profile,color:"Surová",length,qty});
   $("#freeJob").value="Markízy – Silenta 2630 + 1710";
-  systemSelect.value="Bezrámové zasklenie";updateProfiles();
+  systemSelect.value="Bezrámové zasklenie";$("#freeProfileSearch").value="";updateProfiles();
   $("#freeMode").value="auto";$("#freeKerf").value="5";
   $("#freeDepth").value="deep";
   invalidate();render();
@@ -912,7 +954,7 @@ function initFreeOptimizer(){
   const groups=new Map();for(const x of chosenRows){const key=x.profile+'|'+x.length;const g=groups.get(key)||{profile:x.profile,color:checkColor.value,length:x.length,qty:0};g.qty+=x.qty;groups.set(key,g)}
   resetEdit();freeCuts.splice(0,freeCuts.length,...groups.values());
   $("#freeJob").value='Generála Svobodu · bočné steny ABCD · '+checkProfile.value;
-  systemSelect.value='Zábradlia';updateProfiles();ps.value=checkProfile.value;update();$("#freeColor").value=checkColor.value;updateLengths();
+  systemSelect.value='Zábradlia';$('#freeProfileSearch').value='';updateProfiles();ps.value=checkProfile.value;update();$("#freeColor").value=checkColor.value;updateLengths();
   $("#freeMode").value='auto';invalidate();render();
   $("#freePresetNotice").textContent='Generála Svobodu · '+checkProfile.value+': '+chosenQty+' dielov / '+chosenMeters.toLocaleString('sk-SK',{minimumFractionDigits:3,maximumFractionDigits:3})+' m. Farba: '+checkColor.value+'. Sklad sa nemení.';
   $("#profileCheckStatus").textContent=chosenQty+' dielov profilu '+checkProfile.value+' bolo prenesených do rezania. Spusti optimalizáciu; potom tu vyber druhý profil a prenes ho osobitne.';
@@ -1043,7 +1085,10 @@ function initPortal(){
    el("portalSystem").innerHTML='<option value="all">Všetky systémy</option>'+systems.map(x=>'<option value="'+safe(x)+'">'+safe(x)+'</option>').join("");
    if(systems.includes(current))el("portalSystem").value=current;
    const term=el("portalSearch").value.toLowerCase(),system=el("portalSystem").value;
-   const visible=catalog().filter(x=>(system==="all"||(x.systems||[x.system]).includes(system))&&label(x).toLowerCase().includes(term));
+   const portalCategory=catalog().filter(x=>system==="all"||(x.systems||[x.system]).includes(system));
+   syncProfileFilterOptions("portal",portalCategory);
+   const visible=filterProfileRows(portalCategory,"portal");
+   const portalCounter=el("portalFilterSummary");portalCounter.textContent="Zobrazené varianty: "+visible.length+" · Voľné: "+visible.reduce((s,x)=>s+x.free,0)+" ks";
    el("portalStockTable").innerHTML='<table><tr><th>Kód</th><th>Názov</th><th>Farba</th><th>Dĺžka</th><th>Voľné ks</th></tr>'+visible.map(x=>'<tr><td>'+safe(x.profileCode||x.code)+'</td><td>'+safe(x.name)+'</td><td>'+safe(x.color)+'</td><td>'+x.length+' mm</td><td>'+x.free+'</td></tr>').join("")+'</table>';
    el("portalProduct").innerHTML=visible.map(x=>'<option value="'+safe(x.code)+'">'+safe(label(x))+' · voľné '+x.free+' ks</option>').join("");
   }
@@ -1117,6 +1162,7 @@ function initPortal(){
   });
   el("portalInbox").querySelectorAll(".portalApprove").forEach(b=>b.onclick=()=>{const order=portalState.orders[Number(b.dataset.i)];const shortage=availability(order.lines).reduce((s,x)=>s+x.missing,0);const coverage=approvedCoverage(order).reduce((s,x)=>s+x.valid,0);if(shortage>coverage){alert("Objednávku nemožno potvrdiť: chýba "+(shortage-coverage)+" ks bez schválenej dostupnej náhrady.");return}if(shortage){order.status=(order.substitutions||[]).some(s=>s.status==="Schválená – čaká na realizáciu"&&s.delivery==="paint")?"Zámena schválená – čaká na lakovanie (test)":"Zámena schválená – dodať surové (test)";recordEvent(order,"Objednávka prijatá s náhradou",order.status,"admin");sendToProduction(order);render();return}order.status="Prijatá na spracovanie (test)";recordEvent(order,"Objednávka prijatá na spracovanie","Skladová kontrola úspešná","admin");sendToProduction(order);render()});
  };
+ bindProfileFilters("portal",render);
  role.onchange=render;el("portalSearch").oninput=render;el("portalSystem").onchange=render;
  el("portalConfigurator").onclick=()=>{document.querySelector('.module[data-target="orders"]').click()};
  el("portalAdd").onclick=()=>{const code=el("portalProduct").value,qty=Number(el("portalQty").value),p=P.find(x=>x.code===code);if(!p||!Number.isInteger(qty)||qty<1)return alert("Vyber profil a platný počet kusov.");portalState.cart.push({code,name:label(p),qty});render()};
