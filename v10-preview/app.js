@@ -1,3 +1,11 @@
+function buildFreeCutPrintDocument(title,groups,summary,asPdf,kerf){
+ const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+ const num=v=>Number(v).toLocaleString("sk-SK",{maximumFractionDigits:1});
+ const styles='@page{size:A4 landscape;margin:12mm}*{box-sizing:border-box}body{font:11pt Arial,sans-serif;color:#17212b;margin:0}h1{font-size:19pt;margin:0 0 4mm}h2{font-size:13pt;margin:7mm 0 3mm;break-after:avoid}p{margin:2mm 0;line-height:1.4}.meta{font-size:10pt}.summary{border:1px solid #cbd5e1;padding:3mm;margin:4mm 0}.cutPrint{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:5mm}.cutPrint th,.cutPrint td{border:1px solid #94a3b8;padding:2.5mm;vertical-align:top;white-space:normal;overflow-wrap:break-word}.cutPrint th{background:#e8eef5;text-align:left;font-size:10pt}.cutPrint thead{display:table-header-group}.cutPrint tr{break-inside:avoid;page-break-inside:avoid}.cutPrint tbody tr:nth-child(even){background:#f5f7fa}.barNo{font-weight:bold}.cutToken{display:inline;white-space:nowrap;line-height:1.8;font-size:11pt}.cutIndex{font-size:8pt;color:#64748b}.note{font-size:9pt;color:#475569}.alt{background:#fff2a8!important}.noPrint{margin-bottom:5mm}@media print{.noPrint{display:none}}';
+ const details=groups.map(g=>'<section><h2>'+esc(g.label)+'</h2><p class="note">'+g.bars.length+' tyčí · Rezy sú uvedené v poradí zľava doprava. Všetky dĺžky sú v mm.</p><table class="cutPrint" width="100%" cellspacing="0"><colgroup><col style="width:7%"><col style="width:13%"><col style="width:68%"><col style="width:12%"></colgroup><thead><tr><th>Tyč</th><th>Vstup [mm]</th><th>Poradie a dĺžka rezov [mm]</th><th>Zvyšok [mm]</th></tr></thead><tbody>'+g.bars.map((b,i)=>'<tr'+(b.alt?' class="alt"':'')+'><td class="barNo">'+(i+1)+'</td><td>'+num(b.length)+'</td><td>'+b.cuts.map((c,j)=>'<span class="cutToken"><span class="cutIndex">'+(j+1)+'. </span><b>'+num(c)+'</b></span>').join(' &nbsp; / &nbsp; ') +(b.alt?'<p class="note">ALTERNATÍVA: '+esc(b.color)+' - overiť zameniteľnosť.</p>':'')+'</td><td><b>'+num(b.free)+'</b></td></tr>').join('')+'</tbody></table></section>').join('');
+ return '<!doctype html><html lang="sk"><head><meta charset="utf-8"><title>LANGAS - '+esc(title)+'</title><style>'+styles+'</style></head><body><div class="noPrint"><button onclick="window.print()">Tlačiť / uložiť PDF</button></div><h1>LANGAS · Rezací plán</h1><p class="meta"><b>Zákazka:</b> '+esc(title)+'</p><p class="meta">Dátum: '+esc(new Date().toLocaleString("sk-SK"))+' · A4 na šírku · Šírka rezu: '+num(kerf)+' mm</p><div class="summary">'+summary.map(x=>'<p>'+esc(x)+'</p>').join('')+'</div>'+details+'<p class="note">Testovací plán. Skladové zásoby sa nemenia.</p></body></html>';
+}
+
 const D=window.DATA;let P=structuredClone(D.stock),C=structuredClone(D.cuts),H=[],R=[],stockSystem="all",cutSystem="all";const $=s=>document.querySelector(s),findP=c=>P.find(x=>x.code===c||x.profileCode===c);C.forEach(x=>{let p=findP(x.code);if(p){x.system=x.system||p.system||"Nezaradené";x.systems=x.systems||p.systems||[x.system];x.color=x.color||p.color}});
 function profileBase(code){
  const value=String(code||"");
@@ -819,7 +827,8 @@ function initFreeOptimizer(){
  };
  systemSelect.onchange=updateProfiles;ps.onchange=update;$("#freeColor").onchange=updateLengths;updateProfiles();
  let editIndex=-1;
- const invalidate=()=>{$("#freeResult").innerHTML="";};
+ let freePrintGroups=[];
+ const invalidate=()=>{$("#freeResult").innerHTML="";freePrintGroups=[];};
  const render=()=>{
   $("#freeCutsList").innerHTML='<h3>Požadované rezy</h3>'+(freeCuts.length?'<div class="scroll"><table><tr><th>Profil</th><th>Farba</th><th>Dĺžka</th><th>Ks</th><th>Možnosti</th></tr>'+freeCuts.map((x,i)=>'<tr><td>'+safe(profileDisplay(x.profile))+'</td><td>'+safe(x.color)+'</td><td>'+x.length+' mm</td><td>'+x.qty+'</td><td><button type="button" class="freeEdit" data-index="'+i+'">Upraviť</button> <button type="button" class="freeDelete gray" data-index="'+i+'">Vymazať</button></td></tr>').join("")+'</table></div>':'<p class="muted">Zatiaľ nie sú zadané rezy.</p>');
   $("#freeCutsList").querySelectorAll(".freeEdit").forEach(b=>b.onclick=()=>{
@@ -846,13 +855,13 @@ function initFreeOptimizer(){
  };
  function exportFreeOptimization(asPdf){
   const result=$("#freeResult");
-  if(!result.querySelector("table"))return alert("Najprv spusti optimalizáciu.");
+  if(!result.querySelector("table")||!freePrintGroups.length)return alert("Najprv spusti optimalizáciu.");
   const title=$("#freeJob").value.trim()||"Neoznačená zákazka";
+  const summary=[...result.children].filter(x=>x.tagName==="P").slice(0,2).map(x=>x.textContent);
+  const html=buildFreeCutPrintDocument(title,freePrintGroups,summary,asPdf,Number($("#freeKerf").value));
   const win=window.open("","_blank");if(!win)return alert("Povoľ otváranie okien pre tlač.");
-  const styles='@page{size:A4 landscape;margin:12mm}body{font:11px Arial,sans-serif;color:#17324f}h1{font-size:21px;color:#153e71}h2{font-size:16px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #d5e0eb;padding:6px;vertical-align:top}th{background:#e8f2ff}tr{break-inside:avoid}small{font-size:10px}.cutDetail{margin:10px 0 16px}.cutMatrix{font-size:10px;table-layout:fixed}.cutMatrix th,.cutMatrix td{text-align:center;padding:7px 5px;white-space:nowrap}.cutMatrix tr:nth-child(even){background:#f3f7fc}.cutMatrix th{font-size:9px}.detailRow>td{padding:12px 0}.cutDetail h4{font-size:13px;margin:8px 0}.cutMatrix{break-inside:auto}.note{color:#64748b}';
-  const meta='<h1>LANGAS · Optimalizácia rezania</h1><p><b>Zákazka:</b> '+safe(title)+' · <b>Dátum:</b> '+new Date().toLocaleString("sk-SK")+'</p><p>Výstup: A4 na šírku · '+(asPdf?"Uložiť ako PDF":"Tlač")+'</p>';
-  win.document.open();win.document.write('<!doctype html><html lang="sk"><head><meta charset="utf-8"><title>LANGAS - '+safe(title)+'</title><style>'+styles+'</style></head><body>'+meta+result.innerHTML+'<p class="note">Testovací plán. Skladové zásoby sa nemenia.</p></body></html>');win.document.close();
-  win.onload=()=>win.print();
+  win.onload=()=>{win.focus();win.print();};
+  win.document.open();win.document.write(html);win.document.close();
  }
  $("#freePrint").onclick=()=>exportFreeOptimization(false);
  $("#freePdf").onclick=()=>{alert("V nasledujúcom okne zvoľ tlačiareň „Uložiť ako PDF“ (Microsoft Print to PDF). Formát je A4 na šírku.");exportFreeOptimization(true)};
@@ -922,6 +931,7 @@ function initFreeOptimizer(){
   const kerf=Number($("#freeKerf").value);if(!Number.isFinite(kerf)||kerf<0||kerf>20)return alert("Neplatná šírka rezu.");
   const groups=new Map();for(const x of freeCuts){const key=x.profile+"|"+x.color,g=groups.get(key)||{profile:x.profile,color:x.color,cuts:[]};for(let j=0;j<x.qty;j++)g.cuts.push(x.length);groups.set(key,g)}
   let used=0,parts=0,reusable=0,scrap=0,missing=0,fastTotal=0,finalTotal=0;const methods=[];const chosenDepth=$("#freeDepth").value;
+  freePrintGroups=[];
   const rows=[...groups.values()].map(g=>{
    let candidates=P.filter(x=>(x.profileCode||x.code)===g.profile&&x.color===g.color).map(x=>({code:x.code,length:Number(x.length),qty:Math.max(0,x.qty-reservedFor(x.code)),color:x.color})).filter(x=>x.qty>0);
    if($("#freeMode").value==="custom"){const selected=Number($("#freeBar").value);if(g.profile===ps.value&&g.color===$("#freeColor").value)candidates=candidates.filter(x=>x.length===selected)}
@@ -936,6 +946,7 @@ function initFreeOptimizer(){
    const planUsed=primary.used+(fallback?.used||0),planParts=primary.parts+(fallback?.parts||0),planReusable=primary.reusable+(fallback?.reusable||0),planScrap=primary.scrap+(fallback?.scrap||0);
    methods.push({profile:g.profile,color:g.color,method:chosenDepth==="fast"?"Rýchla heuristika":(primary.method||"Hĺbková heuristika – optimum nepotvrdené")});
    fastTotal+=fast.bars.length;finalTotal+=usedBars.length;used+=planUsed;parts+=planParts;reusable+=planReusable;scrap+=planScrap;missing+=missingCuts;
+   freePrintGroups.push({label:profileDisplay(g.profile)+" · "+g.color,bars:usedBars.map(({b,alt})=>({length:b.length,cuts:[...b.cuts],free:b.free,color:b.color,alt}))});
    const maxCuts=Math.max(1,...usedBars.map(x=>x.b.cuts.length));
    const head='<tr><th>Tyč</th><th>Profil / povrch</th><th>Vstup (mm)</th>'+Array.from({length:maxCuts},(_,i)=>'<th>Rez '+(i+1)+'</th>').join("")+'<th>Zvyšok (mm)</th></tr>';
    const body=usedBars.map(({b,alt},i)=>{
