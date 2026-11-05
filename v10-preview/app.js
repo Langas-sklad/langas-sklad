@@ -877,6 +877,8 @@ function initFreeOptimizer(){
  const checkRows=window.SVOBODU_CUTS||[];
  const checkColor=$("#profileCheckColor"),checkPanel=$("#profileCheckPanel");
  const checkCodes=["P012","P013"];
+ const checkProfile=$("#profileCheckProfile");
+ const selectedCheckRows=()=>checkRows.filter(x=>x.profile===checkProfile.value);
  const validColors=[...new Set(P.filter(x=>checkCodes.includes(x.profileCode)).map(x=>x.color))].filter(color=>checkCodes.every(code=>P.some(x=>x.profileCode===code&&x.color===color)));
  checkColor.innerHTML='<option value="">Vyber farbu</option>'+validColors.map(c=>'<option>'+safe(c)+'</option>').join('');
  function showProfileCheck(){
@@ -884,21 +886,26 @@ function initFreeOptimizer(){
   const totals=new Map();for(const x of checkRows){const t=totals.get(x.profile)||{qty:0,mm:0};t.qty+=x.qty;t.mm+=x.length*x.qty;totals.set(x.profile,t)}
   const format=n=>n.toLocaleString('sk-SK',{maximumFractionDigits:3});
   $("#profileCheckSummary").innerHTML='<h4>Súhrn profilov · 240 dielov</h4><ul>'+[...totals].map(([p,t])=>'<li>'+safe(profileDisplay(p))+': <b>'+t.qty+' ks · '+format(t.mm/1000)+' m</b></li>').join('')+'</ul>';
-  $("#profileCheckList").innerHTML='<table><thead><tr><th>Pozícia</th><th>Diel</th><th>Profil</th><th>Farba</th><th>Dĺžka [mm]</th><th>Ks</th><th>Spolu [m]</th></tr></thead><tbody>'+checkRows.map(x=>'<tr><td>'+safe(x.position)+'</td><td>'+safe(x.part)+'</td><td>'+safe(profileDisplay(x.profile))+'</td><td>'+safe(checkColor.value||'Neuvedená')+'</td><td>'+format(x.length)+'</td><td>'+x.qty+'</td><td>'+format(x.length*x.qty/1000)+'</td></tr>').join('')+'</tbody></table>';
-  $("#profileCheckUse").disabled=!validColors.includes(checkColor.value)||!checkRows.length;
+  $("#profileCheckList").innerHTML='<table><thead><tr><th>Pozícia</th><th>Diel</th><th>Profil</th><th>Farba</th><th>Dĺžka [mm]</th><th>Ks</th><th>Spolu [m]</th></tr></thead><tbody>'+selectedCheckRows().map(x=>'<tr><td>'+safe(x.position)+'</td><td>'+safe(x.part)+'</td><td>'+safe(profileDisplay(x.profile))+'</td><td>'+safe(checkColor.value||'Neuvedená')+'</td><td>'+format(x.length)+'</td><td>'+x.qty+'</td><td>'+format(x.length*x.qty/1000)+'</td></tr>').join('')+'</tbody></table>';
+  $("#profileCheckUse").disabled=!validColors.includes(checkColor.value)||!selectedCheckRows().length;
+  $("#profileCheckUse").textContent="Použiť "+checkProfile.value+" na optimalizáciu";
  }
  $("#freeCheckProfiles").onclick=showProfileCheck;
+ checkProfile.onchange=()=>{showProfileCheck();$("#profileCheckStatus").textContent="Vybraný "+checkProfile.value+". Tlačidlo prenesie iba tento profil a nahradí predchádzajúci zoznam rezov."};
  checkColor.onchange=()=>{showProfileCheck();$("#profileCheckStatus").textContent='Farba pre kontrolovaný zoznam bola zmenená. Na prenos použi tlačidlo Použiť na optimalizáciu.'};
  $("#profileCheckUse").onclick=()=>{
   if(!validColors.includes(checkColor.value))return alert('Vyber farbu zákazky.');
-  if(freeCuts.length&&!confirm('Nahradiť aktuálne rezy zákazkou Generála Svobodu?'))return;
-  const groups=new Map();for(const x of checkRows){const key=x.profile+'|'+x.length;const g=groups.get(key)||{profile:x.profile,color:checkColor.value,length:x.length,qty:0};g.qty+=x.qty;groups.set(key,g)}
+  if(freeCuts.length&&!confirm('Nahradiť aktuálne rezy profilom '+checkProfile.value+' zákazky Generála Svobodu?'))return;
+  const chosenRows=selectedCheckRows();
+  const chosenQty=chosenRows.reduce((n,x)=>n+x.qty,0);
+  const chosenMeters=chosenRows.reduce((n,x)=>n+x.length*x.qty,0)/1000;
+  const groups=new Map();for(const x of chosenRows){const key=x.profile+'|'+x.length;const g=groups.get(key)||{profile:x.profile,color:checkColor.value,length:x.length,qty:0};g.qty+=x.qty;groups.set(key,g)}
   resetEdit();freeCuts.splice(0,freeCuts.length,...groups.values());
-  $("#freeJob").value='Generála Svobodu · bočné steny ABCD';
-  systemSelect.value='Zábradlia';updateProfiles();ps.value='P012';update();$("#freeColor").value=checkColor.value;updateLengths();
+  $("#freeJob").value='Generála Svobodu · bočné steny ABCD · '+checkProfile.value;
+  systemSelect.value='Zábradlia';updateProfiles();ps.value=checkProfile.value;update();$("#freeColor").value=checkColor.value;updateLengths();
   $("#freeMode").value='auto';invalidate();render();
-  $("#freePresetNotice").textContent='Generála Svobodu: 48 bočných stien, 240 dielov; P012 192 ks / 281,640 m; P013 48 ks / 22,397 m. Farba: '+checkColor.value+'. Sklad sa nemení.';
-  $("#profileCheckStatus").textContent='240 dielov bolo prenesených do rezania. Teraz môžeš spustiť optimalizáciu.';
+  $("#freePresetNotice").textContent='Generála Svobodu · '+checkProfile.value+': '+chosenQty+' dielov / '+chosenMeters.toLocaleString('sk-SK',{minimumFractionDigits:3,maximumFractionDigits:3})+' m. Farba: '+checkColor.value+'. Sklad sa nemení.';
+  $("#profileCheckStatus").textContent=chosenQty+' dielov profilu '+checkProfile.value+' bolo prenesených do rezania. Spusti optimalizáciu; potom tu vyber druhý profil a prenes ho osobitne.';
  };
  $("#profileCheckCsv").onclick=()=>{
   const quote=x=>'"'+String(x).replaceAll('"','""')+'"';
