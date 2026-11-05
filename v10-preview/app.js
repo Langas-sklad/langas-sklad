@@ -860,8 +860,9 @@ function initFreeOptimizer(){
   const summary=[...result.children].filter(x=>x.tagName==="P").slice(0,2).map(x=>x.textContent);
   const html=buildFreeCutPrintDocument(title,freePrintGroups,summary,asPdf,Number($("#freeKerf").value));
   const win=window.open("","_blank");if(!win)return alert("Povoľ otváranie okien pre tlač.");
+  win.document.open();
   win.onload=()=>{win.focus();win.print();};
-  win.document.open();win.document.write(html);win.document.close();
+  win.document.write(html);win.document.close();
  }
  $("#freePrint").onclick=()=>exportFreeOptimization(false);
  $("#freePdf").onclick=()=>{alert("V nasledujúcom okne zvoľ tlačiareň „Uložiť ako PDF“ (Microsoft Print to PDF). Formát je A4 na šírku.");exportFreeOptimization(true)};
