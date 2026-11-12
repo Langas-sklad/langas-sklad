@@ -931,6 +931,10 @@ function initFreeOptimizer(){
  const checkCodes=["P012","P013"];
  const checkProfile=$("#profileCheckProfile");
  const selectedCheckRows=()=>checkRows.filter(x=>x.profile===checkProfile.value);
+ const excludedPositions=new Set();
+ const positionGroup=position=>String(position).split("-")[0];
+ const checkPositions=[...new Set(checkRows.map(x=>x.position))];
+ const remainingCheckRows=()=>selectedCheckRows().filter(x=>!excludedPositions.has(x.position));
  const validColors=[...new Set(P.filter(x=>checkCodes.includes(x.profileCode)).map(x=>x.color))].filter(color=>checkCodes.every(code=>P.some(x=>x.profileCode===code&&x.color===color)));
  checkColor.innerHTML='<option value="">Vyber farbu</option>'+validColors.map(c=>'<option>'+safe(c)+'</option>').join('');
  function showProfileCheck(){
@@ -938,17 +942,34 @@ function initFreeOptimizer(){
   const totals=new Map();for(const x of checkRows){const t=totals.get(x.profile)||{qty:0,mm:0};t.qty+=x.qty;t.mm+=x.length*x.qty;totals.set(x.profile,t)}
   const format=n=>n.toLocaleString('sk-SK',{maximumFractionDigits:3});
   $("#profileCheckSummary").innerHTML='<h4>Súhrn profilov · 240 dielov</h4><ul>'+[...totals].map(([p,t])=>'<li>'+safe(profileDisplay(p))+': <b>'+t.qty+' ks · '+format(t.mm/1000)+' m</b></li>').join('')+'</ul>';
-  $("#profileCheckList").innerHTML='<table><thead><tr><th>Pozícia</th><th>Diel</th><th>Profil</th><th>Farba</th><th>Dĺžka [mm]</th><th>Ks</th><th>Spolu [m]</th></tr></thead><tbody>'+selectedCheckRows().map(x=>'<tr><td>'+safe(x.position)+'</td><td>'+safe(x.part)+'</td><td>'+safe(profileDisplay(x.profile))+'</td><td>'+safe(checkColor.value||'Neuvedená')+'</td><td>'+format(x.length)+'</td><td>'+x.qty+'</td><td>'+format(x.length*x.qty/1000)+'</td></tr>').join('')+'</tbody></table>';
-  $("#profileCheckUse").disabled=!validColors.includes(checkColor.value)||!selectedCheckRows().length;
+  $("#profileCheckList").innerHTML='<table><thead><tr><th>Vynechať</th><th>Pozícia</th><th>Diel</th><th>Profil</th><th>Farba</th><th>Dĺžka [mm]</th><th>Ks</th><th>Spolu [m]</th></tr></thead><tbody>'+selectedCheckRows().map(x=>'<tr><td><input type="checkbox" style="width:auto" data-exclude-position="'+safe(x.position)+'" aria-label="Vynechať '+safe(x.position)+'" '+(excludedPositions.has(x.position)?'checked':'')+'></td><td>'+safe(x.position)+'</td><td>'+safe(x.part)+'</td><td>'+safe(profileDisplay(x.profile))+'</td><td>'+safe(checkColor.value||'Neuvedená')+'</td><td>'+format(x.length)+'</td><td>'+x.qty+'</td><td>'+format(x.length*x.qty/1000)+'</td></tr>').join('')+'</tbody></table>';
+  const remaining=remainingCheckRows();
+  const disabled=!validColors.includes(checkColor.value)||!remaining.length;
+  $("#profileCheckUse").disabled=disabled;
+  $("#profileCheckRun").disabled=disabled;
+  $("#profileExclusionCount").textContent="Vynechané pozície: "+excludedPositions.size+" · Na rezanie ("+checkProfile.value+"): "+remaining.reduce((n,x)=>n+x.qty,0)+" ks";
+  $("#profileCheckList").querySelectorAll("[data-exclude-position]").forEach(box=>{box.onchange=()=>{
+   if(box.checked)excludedPositions.add(box.dataset.excludePosition);else excludedPositions.delete(box.dataset.excludePosition);
+   showProfileCheck();$("#profileCheckList").querySelectorAll("[data-exclude-position]").forEach(next=>{if(next.dataset.excludePosition===box.dataset.excludePosition)next.focus({preventScroll:true});});
+  };});
+  $("#profileExcludeGroups").querySelectorAll("[data-exclude-group]").forEach(box=>{
+   const positions=checkPositions.filter(p=>positionGroup(p)===box.dataset.excludeGroup);
+   const count=positions.filter(p=>excludedPositions.has(p)).length;
+   box.checked=!!positions.length&&count===positions.length;
+   box.indeterminate=count>0&&count<positions.length;
+   box.onchange=()=>{for(const p of positions){if(box.checked)excludedPositions.add(p);else excludedPositions.delete(p);}showProfileCheck();};
+  });
   $("#profileCheckUse").textContent="Použiť "+checkProfile.value+" na optimalizáciu";
  }
+ $("#profileExcludeReset").onclick=()=>{excludedPositions.clear();showProfileCheck();};
  $("#freeCheckProfiles").onclick=showProfileCheck;
  checkProfile.onchange=()=>{showProfileCheck();$("#profileCheckStatus").textContent="Vybraný "+checkProfile.value+". Tlačidlo prenesie iba tento profil a nahradí predchádzajúci zoznam rezov."};
  checkColor.onchange=()=>{showProfileCheck();$("#profileCheckStatus").textContent='Farba pre kontrolovaný zoznam bola zmenená. Na prenos použi tlačidlo Použiť na optimalizáciu.'};
- $("#profileCheckUse").onclick=()=>{
+ function loadSelectedProfileCuts(run){
   if(!validColors.includes(checkColor.value))return alert('Vyber farbu zákazky.');
+  if(!remainingCheckRows().length)return alert('Všetky pozície sú vynechané.');
   if(freeCuts.length&&!confirm('Nahradiť aktuálne rezy profilom '+checkProfile.value+' zákazky Generála Svobodu?'))return;
-  const chosenRows=selectedCheckRows();
+  const chosenRows=remainingCheckRows();
   const chosenQty=chosenRows.reduce((n,x)=>n+x.qty,0);
   const chosenMeters=chosenRows.reduce((n,x)=>n+x.length*x.qty,0)/1000;
   const groups=new Map();for(const x of chosenRows){const key=x.profile+'|'+x.length;const g=groups.get(key)||{profile:x.profile,color:checkColor.value,length:x.length,qty:0};g.qty+=x.qty;groups.set(key,g)}
@@ -958,7 +979,10 @@ function initFreeOptimizer(){
   $("#freeMode").value='auto';invalidate();render();
   $("#freePresetNotice").textContent='Generála Svobodu · '+checkProfile.value+': '+chosenQty+' dielov / '+chosenMeters.toLocaleString('sk-SK',{minimumFractionDigits:3,maximumFractionDigits:3})+' m. Farba: '+checkColor.value+'. Sklad sa nemení.';
   $("#profileCheckStatus").textContent=chosenQty+' dielov profilu '+checkProfile.value+' bolo prenesených do rezania. Spusti optimalizáciu; potom tu vyber druhý profil a prenes ho osobitne.';
- };
+  if(run)$("#freeRun").click();
+ }
+ $("#profileCheckUse").onclick=()=>loadSelectedProfileCuts(false);
+ $("#profileCheckRun").onclick=()=>loadSelectedProfileCuts(true);
  $("#profileCheckCsv").onclick=()=>{
   const quote=x=>'"'+String(x).replaceAll('"','""')+'"';
   const rows=[['Pozícia','Diel','Profil','Farba','Dĺžka [mm]','Počet [ks]'],...checkRows.map(x=>[x.position,x.part,x.profile,checkColor.value||'Neuvedená',x.length,x.qty])];
